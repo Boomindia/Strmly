@@ -1,0 +1,15 @@
+services:
+  postgres:
+    image: postgres:15
+    container_name: strmly-container
+    environment:
+      POSTGRES_USER: strmly-pg-user
+      POSTGRES_PASSWORD: strmly-pg-pass
+      POSTGRES_DB: strmly_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
