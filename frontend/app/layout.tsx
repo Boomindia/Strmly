@@ -17,7 +17,7 @@ const geistMono = localFont({
 })
 
 export const metadata: Metadata = {
-  title: "BOOM - Social Video Platform",
+  title: "STRMLY - Social Video Platform",
   description: "Share your moments with the world",
 }
 
