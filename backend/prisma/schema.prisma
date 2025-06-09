@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          String   @id @default(cuid())
+  firebaseUid String   @unique
+  phoneNumber String   @unique
+  name        String
+  username    String   @unique
+  email       String?  @unique
+  avatar      String?
+  bio         String?
+  website     String?
+  location    String?
+  isVerified  Boolean  @default(false)
+  isPrivate   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  videos           Video[]
+  likes            Like[]
+  comments         Comment[]
+  shares           Share[]
+  views            View[]
+  followers        Follow[] @relation("UserFollowers")
+  following        Follow[] @relation("UserFollowing")
+  communityMembers CommunityMember[]
+  ownedCommunities Community[]
+  transactions     Transaction[]
+
+  @@map("users")
+}
+
+model Video {
+  id           String      @id @default(cuid())
+  title        String
+  description  String?
+  type         VideoType   @default(SHORT)
+  status       VideoStatus @default(DRAFT)
+  videoUrl     String?
+  videoUrls    Json?       // Multiple quality URLs
+  thumbnailUrl String?
+  duration     Float?
+  metadata     Json?
+  visibility   Visibility  @default(PUBLIC)
+  price        Float?
+  tags         String[]
+  hashtags     String[]
+  seriesId     String?
+  episodeNumber Int?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityId String?
+  community   Community?   @relation(fields: [communityId], references: [id])
+  likes       Like[]
+  comments    Comment[]
+  shares      Share[]
+  views       View[]
+
+  @@map("videos")
+}
+
+model Community {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  avatar      String?
+  banner      String?
+  isPrivate   Boolean   @default(false)
+  rules       String[]
+  tags        String[]
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  ownerId String
+  owner   User              @relation(fields: [ownerId], references: [id])
+  members CommunityMember[]
+  videos  Video[]
+
+  @@map("communities")
+}
+
+model CommunityMember {
+  id        String          @id @default(cuid())
+  role      CommunityRole   @default(MEMBER)
+  joinedAt  DateTime        @default(now())
+
+  // Relations
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, communityId])
+  @@map("community_members")
+}
+
+model Follow {
+  id          String   @id @default(cuid())
+  createdAt   DateTime @default(now())
+
+  // Relations
+  followerId  String
+  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
+  followingId String
+  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
+
+  @@unique([followerId, followingId])
+  @@map("follows")
+}
+
+model Like {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, videoId])
+  @@map("likes")
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  content   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  userId   String
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId  String
+  video    Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  parentId String?
+  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
+  replies  Comment[] @relation("CommentReplies")
+
+  @@map("comments")
+}
+
+model Share {
+  id        String   @id @default(cuid())
+  platform  String?
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("shares")
+}
+
+model View {
+  id        String   @id @default(cuid())
+  duration  Float?   // How long the user watched
+  createdAt DateTime @default(now())
+
+  // Relations
+  userId  String
+  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  videoId String
+  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
+
+  @@map("views")
+}
+
+model Transaction {
+  id          String            @id @default(cuid())
+  type        TransactionType
+  amount      Float
+  description String
+  status      TransactionStatus @default(PENDING)
+  metadata    Json?
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("transactions")
+}
+
+// Enums
+enum VideoType {
+  SHORT
+  LONG
+}
+
+enum VideoStatus {
+  DRAFT
+  PROCESSING
+  PUBLISHED
+  FAILED
+  PRIVATE
+}
+
+enum Visibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
+enum CommunityRole {
+  OWNER
+  ADMIN
+  MODERATOR
+  MEMBER
+}
+
+enum TransactionType {
+  EARNING
+  WITHDRAWAL
+  TIP
+  PURCHASE
+}
+
+enum TransactionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
