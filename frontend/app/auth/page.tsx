@@ -47,7 +47,7 @@ export default function AuthPage() {
 
   if (step === "welcome") {
     return (
-      <div className="min-h-screen bg-red-600 flex flex-col items-center justify-center px-6">
+      <div className="min-h-screen bg-red-500 flex flex-col items-center justify-center px-6">
         {/* Logo placeholder - will be added later */}
         <div className="w-32 h-32 mb-16">{/* Logo will go here */}</div>
 

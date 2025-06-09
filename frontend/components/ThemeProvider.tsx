@@ -26,7 +26,7 @@ const ThemeProviderContext = createContext<ThemeProviderState>(initialState)
 export function ThemeProvider({
   children,
   defaultTheme = "system",
-  storageKey = "strmly-ui-theme",
+  storageKey = "boom-ui-theme",
   ...props
 }: ThemeProviderProps) {
   // Initialize state safely (check for localStorage only on client)
