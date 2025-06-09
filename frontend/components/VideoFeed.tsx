@@ -128,7 +128,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
   }
 
   const handleShare = (platform: string, videoId: number) => {
-    const videoUrl = `https://boom.app/video/${videoId}`
+    const videoUrl = `https://strmly.app/video/${videoId}`
     console.log(`Sharing to ${platform}:`, videoUrl)
 
     //integrate with each platform's sharing API
@@ -144,7 +144,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
   }
 
   const copyLink = (videoId: number) => {
-    const videoUrl = `https://boom.app/video/${videoId}`
+    const videoUrl = `https://strmly.app/video/${videoId}`
     navigator.clipboard.writeText(videoUrl)
     console.log("Link copied to clipboard")
   }
@@ -338,7 +338,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                       </DropdownMenuItem>
                       <DropdownMenuItem>
                         <div className="flex flex-col">
-                          <span className="font-medium">BOOM Pass</span>
+                          <span className="font-medium">STRMLY Pass</span>
                           <span className="text-sm text-muted-foreground">Rs 199/month</span>
                         </div>
                       </DropdownMenuItem>

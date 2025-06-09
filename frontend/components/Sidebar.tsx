@@ -31,7 +31,7 @@ export default function Sidebar() {
       {/* Logo */}
       <div className="mb-8">
         <Link href="/" className="text-3xl font-bold text-primary">
-          BOOM
+          STRMLY
         </Link>
       </div>
 
