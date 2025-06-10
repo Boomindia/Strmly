@@ -10,12 +10,12 @@ import { UsersModule } from "./users/users.module"
 import { VideosModule } from "./videos/videos.module"
 import { UploadModule } from "./upload/upload.module"
 import { VideoProcessingModule } from "./video-processing/video-processing.module"
-import { CommunitiesModule } from "./communities/communities.module"
-import { SearchModule } from "./search/search.module"
+// import { CommunitiesModule } from "./communities/communities.module"
+// import { SearchModule } from "./search/search.module"
 import { WalletModule } from "./wallet/wallet.module"
-import { LiveStreamingModule } from "./live-streaming/live-streaming.module"
-import { NotificationsModule } from "./notifications/notifications.module"
-import { ChatModule } from "./chat/chat.module"
+// import { LiveStreamingModule } from "./live-streaming/live-streaming.module"
+// import { NotificationsModule } from "./notifications/notifications.module"
+// import { ChatModule } from "./chat/chat.module"
 
 @Module({
   imports: [
@@ -52,12 +52,12 @@ import { ChatModule } from "./chat/chat.module"
     VideosModule,
     UploadModule,
     VideoProcessingModule,
-    CommunitiesModule,
-    SearchModule,
+    // CommunitiesModule,
+    // SearchModule,
     WalletModule,
-    LiveStreamingModule,
-    NotificationsModule,
-    ChatModule,
+    // LiveStreamingModule,
+    // NotificationsModule,
+    // ChatModule,
   ],
 })
 export class AppModule {}
