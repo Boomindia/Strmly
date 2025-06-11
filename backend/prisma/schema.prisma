@@ -23,21 +23,15 @@ model User {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relations
-  videos           Video[]
-  likes            Like[]
-  comments         Comment[]
-  shares           Share[]
-  views            View[]
-  followers        Follow[] @relation("UserFollowers")
-  following        Follow[] @relation("UserFollowing")
-  communityMembers CommunityMember[]
+  // Relations (only PostgreSQL relations)
   ownedCommunities Community[]
-  transactions     Transaction[]
+  communityMembers CommunityMember[]
 
   @@map("users")
 }
 
+<<<<<<< HEAD
+=======
 model Video {
   id           String      @id @default(cuid())
   title        String
@@ -71,6 +65,7 @@ model Video {
   @@map("videos")
 }
 
+>>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5
 model Community {
   id          String    @id @default(cuid())
   name        String
@@ -87,7 +82,10 @@ model Community {
   ownerId String
   owner   User              @relation(fields: [ownerId], references: [id])
   members CommunityMember[]
+<<<<<<< HEAD
+=======
   videos  Video[]
+>>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5
 
   @@map("communities")
 }
@@ -107,6 +105,9 @@ model CommunityMember {
   @@map("community_members")
 }
 
+<<<<<<< HEAD
+// Enums
+=======
 model Follow {
   id          String   @id @default(cuid())
   createdAt   DateTime @default(now())
@@ -218,12 +219,15 @@ enum Visibility {
   PRIVATE
 }
 
+>>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5
 enum CommunityRole {
   OWNER
   ADMIN
   MODERATOR
   MEMBER
 }
+<<<<<<< HEAD
+=======
 
 enum TransactionType {
   EARNING
@@ -238,3 +242,4 @@ enum TransactionStatus {
   FAILED
   CANCELLED
 }
+>>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5

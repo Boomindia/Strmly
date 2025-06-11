@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { Home, Video, Film, Upload, User, MoreHorizontal, Settings, LogOut, Wallet, Moon, Sun } from "lucide-react"
+import { Home, Video, Film, Upload, User, MoreHorizontal, Settings, LogOut, Wallet, Moon, Sun, Search } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { Switch } from "@/components/ui/switch"
@@ -40,6 +40,7 @@ export default function Sidebar() {
         <SidebarItem icon={<Home size={22} />} label="Home" href="/" />
         <SidebarItem icon={<Video size={22} />} label="Short Videos" href="/shorts" />
         <SidebarItem icon={<Film size={22} />} label="Long Videos" href="/long" />
+        <SidebarItem icon={<Search size={22} />} label="Search" href="/search" />
         <SidebarItem icon={<Upload size={22} />} label="Upload" href="/upload" />
         <SidebarItem icon={<User size={22} />} label="Profile" href="/profile" />
       </div>
