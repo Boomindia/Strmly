@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common"
-import type { PrismaService } from "../prisma/prisma.service"
+import { Injectable, Inject } from "@nestjs/common"
+import { InjectModel } from "@nestjs/mongoose"
+import { PrismaService } from "../prisma/prisma.service"
 import type { Model } from "mongoose"
 import type { VideoDocument } from "../schemas/video.schema"
 import type { LikeDocument } from "../schemas/like.schema"
@@ -8,26 +9,26 @@ import type { FollowDocument } from "../schemas/follow.schema"
 import type { ShareDocument } from "../schemas/share.schema"
 import type { ViewDocument } from "../schemas/view.schema"
 import type { TransactionDocument } from "../schemas/transaction.schema"
+import { Video } from "../schemas/video.schema"
+import { Like } from "../schemas/like.schema"
+import { Comment } from "../schemas/comment.schema"
+import { Follow } from "../schemas/follow.schema"
+import { Share } from "../schemas/share.schema"
+import { View } from "../schemas/view.schema"
+import { Transaction } from "../schemas/transaction.schema"
 
 @Injectable()
 export class DatabaseService {
-  private videoModel: Model<VideoDocument>
-  private likeModel: Model<LikeDocument>
-  private commentModel: Model<CommentDocument>
-  private followModel: Model<FollowDocument>
-  private shareModel: Model<ShareDocument>
-  private viewModel: Model<ViewDocument>
-  private transactionModel: Model<TransactionDocument>
-
-  constructor(private prisma: PrismaService) {
-    this.videoModel = null
-    this.likeModel = null
-    this.commentModel = null
-    this.followModel = null
-    this.shareModel = null
-    this.viewModel = null
-    this.transactionModel = null
-  }
+  constructor(
+    @Inject(PrismaService) private prisma: PrismaService,
+    @InjectModel(Video.name) private videoModel: Model<VideoDocument>,
+    @InjectModel(Like.name) private likeModel: Model<LikeDocument>,
+    @InjectModel(Comment.name) private commentModel: Model<CommentDocument>,
+    @InjectModel(Follow.name) private followModel: Model<FollowDocument>,
+    @InjectModel(Share.name) private shareModel: Model<ShareDocument>,
+    @InjectModel(View.name) private viewModel: Model<ViewDocument>,
+    @InjectModel(Transaction.name) private transactionModel: Model<TransactionDocument>,
+  ) {}
 
   // User operations (PostgreSQL)
   async getUserById(userId: string) {
@@ -83,7 +84,7 @@ export class DatabaseService {
     })
 
     // Get community data if exists
-    let community = null
+    let community: any = null
     if (video.communityId) {
       community = await this.prisma.community.findUnique({
         where: { id: video.communityId },
@@ -266,7 +267,7 @@ export class DatabaseService {
     }))
   }
 
-  // View tracking
+  // View operations
   async trackVideoView(userId: string, videoId: string, duration?: number, watchPercentage?: number) {
     await this.viewModel.create({
       userId,
@@ -275,7 +276,6 @@ export class DatabaseService {
       watchPercentage,
     })
 
-    // Update video views count
     await this.videoModel.updateOne({ _id: videoId }, { $inc: { viewsCount: 1 } })
   }
 
@@ -287,11 +287,10 @@ export class DatabaseService {
       platform,
     })
 
-    // Update video shares count
     await this.videoModel.updateOne({ _id: videoId }, { $inc: { sharesCount: 1 } })
   }
 
-  // Transaction operations
+  // Transaction operations (MongoDB)
   async createTransaction(userId: string, type: string, amount: number, description: string, metadata?: any) {
     return this.transactionModel.create({
       userId,
@@ -304,7 +303,6 @@ export class DatabaseService {
 
   async getUserTransactions(userId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit
-
     return this.transactionModel.find({ userId }).sort({ createdAt: -1 }).skip(skip).limit(limit)
   }
 
@@ -314,45 +312,65 @@ export class DatabaseService {
     startDate.setDate(startDate.getDate() - days)
 
     const [views, likes, comments, shares] = await Promise.all([
-      this.viewModel.countDocuments({ videoId, createdAt: { $gte: startDate } }),
-      this.likeModel.countDocuments({ videoId, targetType: "VIDEO", createdAt: { $gte: startDate } }),
-      this.commentModel.countDocuments({ videoId, createdAt: { $gte: startDate } }),
-      this.shareModel.countDocuments({ videoId, createdAt: { $gte: startDate } }),
+      this.viewModel.aggregate([
+        { $match: { videoId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      this.likeModel.aggregate([
+        { $match: { videoId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      this.commentModel.aggregate([
+        { $match: { videoId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      this.shareModel.aggregate([
+        { $match: { videoId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
     ])
 
-    return { views, likes, comments, shares }
+    return {
+      views,
+      likes,
+      comments,
+      shares,
+    }
   }
 
+  // User analytics
   async getUserAnalytics(userId: string, days = 30) {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
-    const userVideos = await this.videoModel.find({ userId }, "_id")
-    const videoIds = userVideos.map((v) => v._id.toString())
-
-    const [totalViews, totalLikes, totalComments, totalShares, newFollowers] = await Promise.all([
-      this.viewModel.countDocuments({ videoId: { $in: videoIds }, createdAt: { $gte: startDate } }),
-      this.likeModel.countDocuments({
-        videoId: { $in: videoIds },
-        targetType: "VIDEO",
-        createdAt: { $gte: startDate },
-      }),
-      this.commentModel.countDocuments({ videoId: { $in: videoIds }, createdAt: { $gte: startDate } }),
-      this.shareModel.countDocuments({ videoId: { $in: videoIds }, createdAt: { $gte: startDate } }),
-      this.followModel.countDocuments({ followingId: userId, createdAt: { $gte: startDate } }),
+    const [videos, followers, views, likes] = await Promise.all([
+      this.videoModel.aggregate([
+        { $match: { userId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      this.followModel.aggregate([
+        { $match: { followingId: userId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      this.viewModel.aggregate([
+        { $match: { userId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
+      this.likeModel.aggregate([
+        { $match: { userId, createdAt: { $gte: startDate } } },
+        { $group: { _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } }, count: { $sum: 1 } } },
+      ]),
     ])
 
     return {
-      totalViews,
-      totalLikes,
-      totalComments,
-      totalShares,
-      newFollowers,
+      videos,
+      followers,
+      views,
+      likes,
     }
   }
 
-  // Add these methods to the DatabaseService class
-
+  // User followers/following
   async getUserFollowers(userId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit
 
@@ -363,28 +381,24 @@ export class DatabaseService {
       .limit(limit)
       .lean()
 
-    // Get user data from PostgreSQL
-    const userIds = follows.map((f) => f.followerId)
+    const followerIds = follows.map((f) => f.followerId)
     const users = await this.prisma.user.findMany({
-      where: { id: { in: userIds } },
+      where: { id: { in: followerIds } },
       select: {
         id: true,
         name: true,
         username: true,
         avatar: true,
         isVerified: true,
-        bio: true,
       },
     })
 
     const userMap = new Map(users.map((u) => [u.id, u]))
 
-    return {
-      followers: follows.map((follow) => userMap.get(follow.followerId)).filter(Boolean),
-      total: await this.followModel.countDocuments({ followingId: userId }),
-      page,
-      limit,
-    }
+    return follows.map((follow) => ({
+      ...follow,
+      user: userMap.get(follow.followerId),
+    }))
   }
 
   async getUserFollowing(userId: string, page = 1, limit = 20) {
@@ -397,30 +411,27 @@ export class DatabaseService {
       .limit(limit)
       .lean()
 
-    // Get user data from PostgreSQL
-    const userIds = follows.map((f) => f.followingId)
+    const followingIds = follows.map((f) => f.followingId)
     const users = await this.prisma.user.findMany({
-      where: { id: { in: userIds } },
+      where: { id: { in: followingIds } },
       select: {
         id: true,
         name: true,
         username: true,
         avatar: true,
         isVerified: true,
-        bio: true,
       },
     })
 
     const userMap = new Map(users.map((u) => [u.id, u]))
 
-    return {
-      following: follows.map((follow) => userMap.get(follow.followingId)).filter(Boolean),
-      total: await this.followModel.countDocuments({ followerId: userId }),
-      page,
-      limit,
-    }
+    return follows.map((follow) => ({
+      ...follow,
+      user: userMap.get(follow.followingId),
+    }))
   }
 
+  // User videos
   async getUserVideos(userId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit
 
@@ -431,7 +442,7 @@ export class DatabaseService {
       .limit(limit)
       .lean()
 
-    // Get user data from PostgreSQL
+    // Get user data
     const user = await this.prisma.user.findUnique({
       where: { id: userId },
       select: {
@@ -443,25 +454,37 @@ export class DatabaseService {
       },
     })
 
-    return {
-      videos: videos.map((video) => ({
-        ...video,
-        user,
-      })),
-      total: await this.videoModel.countDocuments({ userId, status: "PUBLISHED" }),
-      page,
-      limit,
-    }
+    // Get community data
+    const communityIds = videos.map((v) => v.communityId).filter(Boolean) as string[]
+    const communities = await this.prisma.community.findMany({
+      where: { id: { in: communityIds } },
+    })
+
+    const communityMap = new Map(communities.map((c) => [c.id, c]))
+
+    return videos.map((video) => ({
+      ...video,
+      user,
+      community: video.communityId ? communityMap.get(video.communityId) : null,
+    }))
   }
 
-  // Add method to inject models (call this in constructor)
-  setModels(models: any) {
-    this.videoModel = models.videoModel
-    this.likeModel = models.likeModel
-    this.commentModel = models.commentModel
-    this.followModel = models.followModel
-    this.shareModel = models.shareModel
-    this.viewModel = models.viewModel
-    this.transactionModel = models.transactionModel
+  async getCommunityWithMembers(communityId: string): Promise<any | null> {
+    const community: any = await this.prisma.community.findUnique({
+      where: { id: communityId },
+      include: {
+        members: {
+          include: {
+            user: true,
+          },
+        },
+      },
+    })
+
+    if (!community) {
+      return null
+    }
+
+    return community
   }
 }

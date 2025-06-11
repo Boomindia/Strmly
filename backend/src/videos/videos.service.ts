@@ -1,108 +1,114 @@
 import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common"
-import type { Model } from "mongoose"
-import type { DatabaseService } from "../db/db.service"
-import type { CacheService } from "../cache/cache.service"
-import type { VideoProcessingService } from "../video-processing/video-processing.service"
-import type { UploadService } from "../upload/upload.service"
+import { InjectModel } from "@nestjs/mongoose"
+import { Model } from "mongoose"
+import { Video } from "../schemas/video.schema"
 import type { VideoDocument } from "../schemas/video.schema"
+import { DatabaseService } from "../db/db.service"
+import { UploadService } from "../upload/upload.service"
+import { VideoProcessingService } from "../video-processing/video-processing.service"
+import { CacheService } from "../cache/cache.service"
 import type { CreateVideoDto, UpdateVideoDto } from "./dto/video.dto"
 
 @Injectable()
 export class VideosService {
-  private videoModel: Model<VideoDocument>
-
   constructor(
-    databaseService: DatabaseService,
-    cacheService: CacheService,
-    videoProcessingService: VideoProcessingService,
-    uploadService: UploadService,
-  ) {
-    this.videoModel = databaseService.getVideoModel()
-  }
+    @InjectModel(Video.name) private videoModel: Model<VideoDocument>,
+    private databaseService: DatabaseService,
+    private uploadService: UploadService,
+    private videoProcessingService: VideoProcessingService,
+    private cacheService: CacheService,
+  ) {}
 
-  async createVideo(userId: string, createVideoDto: CreateVideoDto, files?: any) {
-    let videoUrl = ""
-    let thumbnailUrl = ""
+  async createVideo(userId: string, files: { video?: Express.Multer.File[]; thumbnail?: Express.Multer.File[] }) {
+    const videoFile = files.video?.[0]
+    const thumbnailFile = files.thumbnail?.[0]
 
-    if (files?.video?.[0]) {
-      // Upload original video to S3
-      videoUrl = await this.uploadService.uploadVideo(files.video[0], `videos/${userId}`)
+    if (!videoFile) {
+      throw new Error("Video file is required")
     }
 
-    if (files?.thumbnail?.[0]) {
-      // Upload thumbnail to S3
-      thumbnailUrl = await this.uploadService.uploadImage(files.thumbnail[0], `thumbnails`)
-    }
+    let videoUrl: string | undefined
+    let thumbnailUrl: string | undefined
 
-    // Create video record in MongoDB
-    const video = await this.videoModel.create({
-      ...createVideoDto,
-      userId,
-      videoUrl,
-      thumbnailUrl,
-      status: files?.video?.[0] ? "PROCESSING" : "DRAFT",
-    })
+    try {
+      // Upload video and thumbnail
+      videoUrl = await this.uploadService.uploadFile(videoFile, "videos", "video/mp4")
+      if (thumbnailFile) {
+        thumbnailUrl = await this.uploadService.uploadFile(thumbnailFile, "thumbnails", "image/jpeg")
+      }
 
-    // If video file was uploaded, start processing
-    if (files?.video?.[0]) {
-      await this.videoProcessingService.addVideoToProcessingQueue({
-        videoId: video._id.toString(),
-        inputUrl: videoUrl,
+      // Create video document
+      const video = await this.videoModel.create({
         userId,
-        originalFilename: files.video[0].originalname,
+        videoPath: videoFile.path,
+        thumbnail: thumbnailFile?.path,
+        thumbnailUrl,
+        videoUrl,
+        status: "PENDING",
       })
+
+      // Add to processing queue
+      await this.videoProcessingService.addVideoToProcessingQueue({
+        videoId: (video as any)._id.toString(),
+        inputUrl: videoFile.path,
+        userId,
+        originalFilename: videoFile.originalname,
+      })
+
+      // Get video with user data
+      const videoWithUserData = await this.databaseService.getVideoWithUserData((video as any)._id.toString())
+
+      // Cache video data
+      await this.cacheService.cacheVideoData((video as any)._id.toString(), videoWithUserData)
+
+      return videoWithUserData
+    } catch (error) {
+      // Clean up uploaded files if creation fails
+      if (videoUrl) {
+        await this.uploadService.deleteFileFromS3(videoUrl)
+      }
+      if (thumbnailUrl) {
+        await this.uploadService.deleteFileFromS3(thumbnailUrl)
+      }
+      throw error
     }
-
-    // Get video with user data
-    const videoWithUserData = await this.databaseService.getVideoWithUserData(video._id.toString())
-
-    // Cache the video data
-    await this.cacheService.cacheVideoData(video._id.toString(), videoWithUserData)
-
-    return videoWithUserData
   }
 
-  async getVideoById(videoId: string, userId?: string) {
+  async getVideo(videoId: string, userId?: string) {
     // Try to get from cache first
     let video = await this.cacheService.getCachedVideoData(videoId)
 
     if (!video) {
+      // Get from database if not in cache
       video = await this.databaseService.getVideoWithUserData(videoId, userId)
 
-      if (!video) {
-        throw new NotFoundException("Video not found")
+      if (video) {
+        // Cache video data
+        await this.cacheService.cacheVideoData(videoId, video)
       }
-
-      // Cache the video data
-      await this.cacheService.cacheVideoData(videoId, video)
-    }
-
-    // Track view if user is provided
-    if (userId) {
-      await this.trackVideoView(videoId, userId)
     }
 
     return video
   }
 
-  async getVideoFeed(userId: string, page = 1, limit = 10, type?: "SHORT" | "LONG") {
+  async getVideoFeed(userId: string, page = 1, limit = 10, type?: string) {
     return this.databaseService.getVideoFeed(userId, page, limit, type)
   }
 
-  async updateVideo(videoId: string, userId: string, updateVideoDto: UpdateVideoDto) {
-    const video = await this.videoModel.findById(videoId)
-
+  async updateVideo(videoId: string, userId: string, updateData: Partial<VideoDocument>) {
+    const video = await this.videoModel.findOne({ _id: videoId, userId })
     if (!video) {
-      throw new NotFoundException("Video not found")
+      throw new Error("Video not found")
     }
 
-    if (video.userId !== userId) {
-      throw new ForbiddenException("You can only update your own videos")
-    }
+    // Update video
+    const updatedVideo = await this.videoModel.findByIdAndUpdate(
+      videoId,
+      { $set: updateData },
+      { new: true },
+    )
 
-    const updatedVideo = await this.videoModel.findByIdAndUpdate(videoId, updateVideoDto, { new: true })
-
-    // Get updated video with user data
+    // Get video with user data
     const videoWithUserData = await this.databaseService.getVideoWithUserData(videoId, userId)
 
     // Update cache
@@ -112,102 +118,81 @@ export class VideosService {
   }
 
   async deleteVideo(videoId: string, userId: string) {
-    const video = await this.videoModel.findById(videoId)
-
+    const video = await this.videoModel.findOne({ _id: videoId, userId })
     if (!video) {
-      throw new NotFoundException("Video not found")
+      throw new Error("Video not found")
     }
 
-    if (video.userId !== userId) {
-      throw new ForbiddenException("You can only delete your own videos")
-    }
-
-    // Delete video files from S3
+    // Delete video file
     if (video.videoUrl) {
-      const videoKey = video.videoUrl.split("/").slice(-2).join("/")
-      await this.uploadService.deleteFileFromS3(videoKey)
+      await this.uploadService.deleteFileFromS3(video.videoUrl)
     }
 
+    // Delete thumbnail
     if (video.thumbnailUrl) {
-      const thumbnailKey = video.thumbnailUrl.split("/").slice(-2).join("/")
-      await this.uploadService.deleteFileFromS3(thumbnailKey)
+      await this.uploadService.deleteFileFromS3(video.thumbnailUrl)
     }
 
-    // Delete from MongoDB
-    await this.videoModel.findByIdAndDelete(videoId)
+    // Delete video document
+    await this.videoModel.deleteOne({ _id: videoId })
 
-    // Remove from cache
+    // Delete from cache
     await this.cacheService.del(`video:${videoId}`)
 
-    return { message: "Video deleted successfully" }
+    return { success: true }
   }
 
-  async likeVideo(videoId: string, userId: string) {
+  async toggleLike(userId: string, videoId: string) {
     return this.databaseService.toggleVideoLike(userId, videoId)
   }
 
-  async addComment(videoId: string, userId: string, content: string, parentId?: string) {
+  async addComment(userId: string, videoId: string, content: string, parentId?: string) {
     return this.databaseService.createComment(userId, videoId, content, parentId)
   }
 
-  async getVideoComments(videoId: string, page = 1, limit = 20) {
+  async getComments(videoId: string, page = 1, limit = 20) {
     return this.databaseService.getVideoComments(videoId, page, limit)
   }
 
-  async shareVideo(videoId: string, userId: string, platform?: string) {
+  async shareVideo(userId: string, videoId: string, platform?: string) {
     await this.databaseService.shareVideo(userId, videoId, platform)
-    return { message: "Video shared successfully" }
   }
 
-  private async trackVideoView(videoId: string, userId: string) {
-    // Check if user has already viewed this video recently (within 1 hour)
+  async trackView(userId: string, videoId: string) {
     const recentView = await this.cacheService.get(`view:${userId}:${videoId}`)
 
     if (!recentView) {
-      // Record the view
       await this.databaseService.trackVideoView(userId, videoId)
-
-      // Cache the view to prevent duplicate counting
-      await this.cacheService.set(`view:${userId}:${videoId}`, true, 3600)
+      await this.cacheService.set(`view:${userId}:${videoId}`, true, 3600) // Cache for 1 hour
     }
   }
 
-  async getVideoAnalytics(videoId: string, userId: string, days = 30) {
-    const video = await this.videoModel.findById(videoId)
-
-    if (!video || video.userId !== userId) {
-      throw new ForbiddenException("Access denied")
-    }
-
-    return this.databaseService.getVideoAnalytics(videoId, days)
+  async getVideoAnalytics(videoId: string, userId: string) {
+    return this.databaseService.getVideoAnalytics(videoId, Number(userId))
   }
 
-  async getTrendingVideos(limit = 20) {
-    const cacheKey = `trending_videos:${limit}`
-    let trendingVideos = await this.cacheService.get(cacheKey)
+  async getTrendingVideos(page: number = 1, limit: number = 10) {
+    const skip = (page - 1) * limit
 
-    if (!trendingVideos) {
-      // Calculate trending based on recent engagement
-      const sevenDaysAgo = new Date()
-      sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
+    const videos = await this.videoModel
+      .find({ status: "PUBLISHED" })
+      .sort({ views: -1, likes: -1, createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
 
-      const videos = await this.videoModel
-        .find({
-          status: "PUBLISHED",
-          createdAt: { $gte: sevenDaysAgo },
-        })
-        .sort({ likesCount: -1, viewsCount: -1, commentsCount: -1 })
-        .limit(limit)
-        .lean()
+    const total = await this.videoModel.countDocuments({ status: "PUBLISHED" })
 
-      // Get user data for trending videos
-      const videoIds = videos.map((v) => v._id.toString())
-      trendingVideos = await Promise.all(videoIds.map((id) => this.databaseService.getVideoWithUserData(id)))
+    const videosWithUserData = await Promise.all(
+      videos.map((video) => this.databaseService.getVideoWithUserData((video as any)._id.toString()))
+    )
 
-      // Cache for 1 hour
-      await this.cacheService.set(cacheKey, trendingVideos, 3600)
+    return {
+      videos: videosWithUserData,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
     }
-
-    return trendingVideos
   }
 }
+

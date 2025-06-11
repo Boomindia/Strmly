@@ -1,25 +1,60 @@
+import { ApiProperty } from "@nestjs/swagger"
 import { IsString, IsOptional, IsEnum, IsNumber, IsArray } from "class-validator"
 
 export class CreateVideoDto {
+  @ApiProperty()
   @IsString()
   title: string
 
+  @ApiProperty({ required: false })
   @IsString()
-  description: string
-
-  @IsEnum(["SHORT", "LONG"])
-  type: string
-
   @IsOptional()
+  description?: string
+
+  @ApiProperty({ enum: ["SHORT", "LONG"], default: "SHORT" })
+  @IsEnum(["SHORT", "LONG"])
+  @IsOptional()
+  type?: string
+
+  @ApiProperty({ enum: ["PUBLIC", "UNLISTED", "PRIVATE"], default: "PUBLIC" })
+  @IsEnum(["PUBLIC", "UNLISTED", "PRIVATE"])
+  @IsOptional()
+  visibility?: string
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  price?: number
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  tags?: string[]
+
+  @ApiProperty({ type: [String], required: false })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  hashtags?: string[]
+
+  @ApiProperty({ required: false })
   @IsString()
+  @IsOptional()
+  seriesId?: string
+
+  @ApiProperty({ required: false })
+  @IsNumber()
+  @IsOptional()
+  episodeNumber?: number
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   communityId?: string
 
   @IsEnum(["single", "series"])
   videoType: string
-
-  @IsOptional()
-  @IsString()
-  seriesId?: string
 
   @IsOptional()
   @IsString()
@@ -33,53 +68,25 @@ export class CreateVideoDto {
   @IsNumber()
   totalEpisodes?: number
 
-  @IsOptional()
-  @IsNumber()
-  episodeNumber?: number
-
-  @IsEnum(["free", "paid"])
-  accessType: string
-
-  @IsOptional()
-  @IsNumber()
-  price?: number
-
   @IsString()
   genre: string
 
   @IsEnum(["all", "13+", "16+", "18+"])
   ageRestriction: string
 
-  @IsArray()
-  @IsString({ each: true })
-  tags: string[]
-
   @IsEnum(["landscape", "portrait"])
   orientation: string
-
-  @IsEnum(["public", "unlisted", "private"])
-  visibility: string
 }
 
-export class UpdateVideoDto {
-  @IsOptional()
+export class UpdateVideoDto extends CreateVideoDto {}
+
+export class AddCommentDto {
+  @ApiProperty()
   @IsString()
-  title?: string
+  content: string
 
-  @IsOptional()
+  @ApiProperty({ required: false })
   @IsString()
-  description?: string
-
   @IsOptional()
-  @IsArray()
-  @IsString({ each: true })
-  tags?: string[]
-
-  @IsOptional()
-  @IsEnum(["public", "unlisted", "private"])
-  visibility?: string
-
-  @IsOptional()
-  @IsString()
-  thumbnailUrl?: string
+  parentId?: string
 }

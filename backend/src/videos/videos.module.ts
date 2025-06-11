@@ -6,6 +6,7 @@ import { DatabaseModule } from "../db/db.module"
 import { UploadModule } from "../upload/upload.module"
 import { VideoProcessingModule } from "../video-processing/video-processing.module"
 import { Video, VideoSchema } from "../schemas/video.schema"
+import { RedisCacheModule } from "../cache/cache.module"
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { Video, VideoSchema } from "../schemas/video.schema"
     DatabaseModule,
     UploadModule,
     VideoProcessingModule,
+    RedisCacheModule,
   ],
   controllers: [VideosController],
   providers: [VideosService],

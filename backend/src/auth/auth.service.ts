@@ -16,9 +16,9 @@ export class AuthService {
     if (!admin.apps.length) {
       admin.initializeApp({
         credential: admin.credential.cert({
-          projectId: this.configService.get("FIREBASE_PROJECT_ID"),
-          privateKey: this.configService.get("FIREBASE_PRIVATE_KEY")?.replace(/\\n/g, "\n"),
-          clientEmail: this.configService.get("FIREBASE_CLIENT_EMAIL"),
+          projectId: process.env.FIREBASE_PROJECT_ID,
+          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
+          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
         }),
       })
     }

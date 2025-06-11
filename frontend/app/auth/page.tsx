@@ -56,6 +56,8 @@ export default function AuthPage() {
   const [isNewUser, setIsNewUser] = useState(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [location, setLocation] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [error, setError] = useState("")
 
   // Registration form data
   const [registrationData, setRegistrationData] = useState({
@@ -68,30 +70,30 @@ export default function AuthPage() {
     location: "",
   })
 
-  const setIsLoggedIn = useAuthStore((state) => state.setIsLoggedIn)
+  const { sendOTP, verifyOTP, loading: authLoading, error: authError, setIsLoggedIn } = useAuthStore()
   const router = useRouter()
 
-  const handleSendOTP = () => {
-    console.log("Sending OTP to:", countryCode + phoneNumber)
-    setStep("otp")
+  const handleSendOTP = async () => {
+    try {
+      // Format phone number: remove any spaces, dashes, or parentheses
+      const formattedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '')
+      const fullPhoneNumber = `${countryCode}${formattedPhone}`
+      console.log('Attempting to send OTP to:', fullPhoneNumber)
+      
+      await sendOTP(fullPhoneNumber)
+      setStep("otp")
+    } catch (error) {
+      console.error('Error in handleSendOTP:', error)
+    }
   }
 
-  const handleVerifyOTP = () => {
-    console.log("Verifying OTP:", otp)
-
-    // Simulate checking if user exists
-    const userExists = Math.random() > 0.5 // Random for demo
-
-    if (userExists) {
-      // Existing user - login directly
-      setIsLoggedIn(true)
-      localStorage.setItem("user", "dummy_token")
-      router.push("/")
-    } else {
-      // New user - go to registration
-      setIsNewUser(true)
+  const handleVerifyOTP = async () => {
+    await verifyOTP(otp)
+    if (isNewUser) {
       setStep("register")
       getCurrentLocation()
+    } else {
+      router.push("/")
     }
   }
 
@@ -114,7 +116,6 @@ export default function AuthPage() {
   const handleSocialLogin = (provider: string) => {
     console.log("Login with:", provider)
     setIsLoggedIn(true)
-    localStorage.setItem("user", "dummy_token")
     router.push("/")
   }
 
@@ -147,7 +148,6 @@ export default function AuthPage() {
     console.log("Registration data:", registrationData)
     // API call to register user
     setIsLoggedIn(true)
-    localStorage.setItem("user", "dummy_token")
     router.push("/")
   }
 
@@ -197,7 +197,7 @@ export default function AuthPage() {
 
   if (step === "signup" || step === "login") {
     return (
-      <div className="min-h-screen bg-red-500 flex flex-col px-6 py-8">
+      <div className="min-h-screen bg-[#fe0000] flex flex-col px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <Button
             variant="ghost"
@@ -213,39 +213,6 @@ export default function AuthPage() {
         </div>
 
         <div className="flex-1 flex flex-col justify-center">
-          <div className="space-y-4 mb-8">
-            <Button
-              onClick={() => handleSocialLogin("Apple")}
-              className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium flex items-center justify-center"
-            >
-              <span className="mr-3">🍎</span>
-              continue with Apple
-            </Button>
-
-            <Button
-              onClick={() => handleSocialLogin("Google")}
-              className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium flex items-center justify-center"
-            >
-              <span className="mr-3">🔍</span>
-              continue with Google
-            </Button>
-
-            <Button
-              onClick={() => handleSocialLogin("TikTok")}
-              className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium flex items-center justify-center"
-            >
-              <span className="mr-3">🎵</span>
-              continue with TikTok
-            </Button>
-
-            <Button
-              onClick={() => setStep(step === "signup" ? "signup" : "login")}
-              className="w-full bg-red-400 text-white hover:bg-red-600 rounded-full py-4 text-lg font-medium"
-            >
-              continue with phone
-            </Button>
-          </div>
-
           <div className="space-y-4">
             <div className="flex space-x-2">
               <Select value={countryCode} onValueChange={setCountryCode}>
@@ -266,16 +233,25 @@ export default function AuthPage() {
                 value={phoneNumber}
                 onChange={(e) => setPhoneNumber(e.target.value)}
                 className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/70 rounded-full py-4 text-lg"
+                type="tel"
+                pattern="[0-9]*"
+                inputMode="numeric"
               />
             </div>
 
             <Button
               onClick={handleSendOTP}
-              disabled={!phoneNumber}
+              disabled={!phoneNumber || authLoading}
               className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium"
             >
-              Send OTP
+              {authLoading ? "Sending..." : "Send OTP"}
             </Button>
+
+            {authError && (
+              <div className="mt-2 text-center">
+                <p className="text-white/90 text-sm">{authError}</p>
+              </div>
+            )}
           </div>
 
           <div className="mt-8 text-center">
@@ -284,6 +260,9 @@ export default function AuthPage() {
             </p>
           </div>
         </div>
+
+        {/* Invisible reCAPTCHA container */}
+        <div id="recaptcha-container" className="hidden" />
       </div>
     )
   }
@@ -306,34 +285,28 @@ export default function AuthPage() {
         </div>
 
         <div className="flex-1 flex flex-col justify-center">
-          <div className="text-center mb-8">
-            <h2 className="text-white text-2xl font-bold mb-2">Enter OTP</h2>
-            <p className="text-white/70">
-              We sent a code to {countryCode} {phoneNumber}
-            </p>
-          </div>
-
           <div className="space-y-4">
             <Input
-              placeholder="Enter 6-digit OTP"
+              placeholder="Enter OTP"
               value={otp}
               onChange={(e) => setOtp(e.target.value)}
-              maxLength={6}
-              className="bg-white/10 border-white/20 text-white placeholder:text-white/70 rounded-full py-4 text-lg text-center"
+              className="bg-white/10 border-white/20 text-white placeholder:text-white/70 rounded-full py-4 text-lg"
             />
 
             <Button
               onClick={handleVerifyOTP}
-              disabled={otp.length !== 6}
+              disabled={!otp || loading}
               className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium"
             >
-              Verify OTP
-            </Button>
-
-            <Button variant="ghost" className="w-full text-white hover:bg-white/10 text-sm">
-              Resend OTP
+              {loading ? "Verifying..." : "Verify OTP"}
             </Button>
           </div>
+
+          {error && (
+            <div className="mt-4 text-center">
+              <p className="text-white/90 text-sm">{error}</p>
+            </div>
+          )}
         </div>
       </div>
     )

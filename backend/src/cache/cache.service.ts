@@ -1,13 +1,10 @@
-import { Injectable } from "@nestjs/common"
+import { Injectable, Inject } from "@nestjs/common"
+import { CACHE_MANAGER } from "@nestjs/cache-manager"
 import type { Cache } from "cache-manager"
 
 @Injectable()
 export class CacheService {
-  private cacheManager: Cache
-
-  constructor(cacheManager: Cache) {
-    this.cacheManager = cacheManager
-  }
+  constructor(@Inject(CACHE_MANAGER) private cacheManager: Cache) {}
 
   async get<T>(key: string): Promise<T | undefined> {
     return await this.cacheManager.get<T>(key)
@@ -21,9 +18,9 @@ export class CacheService {
     await this.cacheManager.del(key)
   }
 
-  async reset(): Promise<void> {
-    await this.cacheManager.reset()
-  }
+  // async reset(): Promise<void> {
+  //   await this.cacheManager.reset()
+  // }
 
   // User session caching
   async setUserSession(userId: string, sessionData: any, ttl = 86400): Promise<void> {

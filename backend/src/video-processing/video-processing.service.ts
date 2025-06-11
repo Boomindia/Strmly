@@ -1,9 +1,10 @@
-import { Injectable, Logger } from "@nestjs/common"
+import { Injectable, Logger, Inject } from "@nestjs/common"
+import { InjectQueue } from "@nestjs/bull"
 import type { Queue } from "bull"
 import * as ffmpeg from "fluent-ffmpeg"
 import * as path from "path"
 import * as fs from "fs"
-import type { UploadService } from "../upload/upload.service"
+import { UploadService } from "../upload/upload.service"
 
 export interface VideoProcessingJob {
   videoId: string
@@ -30,13 +31,10 @@ export class VideoProcessingService {
     { name: "1080p", width: 1920, height: 1080, bitrate: "5000k" },
   ]
 
-  private videoQueue: Queue
-  private uploadService: UploadService
-
-  constructor(videoQueue: Queue, uploadService: UploadService) {
-    this.videoQueue = videoQueue
-    this.uploadService = uploadService
-  }
+  constructor(
+    @InjectQueue('video-processing') private videoQueue: Queue,
+    private uploadService: UploadService
+  ) {}
 
   async addVideoToProcessingQueue(jobData: VideoProcessingJob): Promise<void> {
     await this.videoQueue.add("process-video", jobData, {
@@ -68,10 +66,10 @@ export class VideoProcessingService {
 
       // Generate thumbnail
       const thumbnailPath = await this.generateThumbnail(inputPath, videoId)
-      const thumbnailUrl = await this.uploadService.uploadFileToS3(
+      const thumbnailUrl = await this.uploadService.uploadFile(
         fs.createReadStream(thumbnailPath),
-        `thumbnails/${videoId}_thumbnail.jpg`,
-        "image/jpeg",
+        "thumbnails",
+        "image/jpeg"
       )
 
       // Process video in multiple qualities
@@ -80,10 +78,10 @@ export class VideoProcessingService {
       // Upload processed videos to S3
       const videoUrls = {}
       for (const [quality, filePath] of Object.entries(processedVideos)) {
-        const videoUrl = await this.uploadService.uploadFileToS3(
+        const videoUrl = await this.uploadService.uploadFile(
           fs.createReadStream(filePath),
-          `videos/${videoId}/${quality}.mp4`,
-          "video/mp4",
+          "videos",
+          "video/mp4"
         )
         videoUrls[quality] = videoUrl
       }

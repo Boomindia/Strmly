@@ -1,8 +1,8 @@
 import { Injectable, NotFoundException, ConflictException } from "@nestjs/common"
-import type { PrismaService } from "../prisma/prisma.service"
-import type { DatabaseService } from "../db/db.service"
-import type { CacheService } from "../cache/cache.service"
-import type { UploadService } from "../upload/upload.service"
+import { PrismaService } from "../prisma/prisma.service"
+import { DatabaseService } from "../db/db.service"
+import { CacheService } from "../cache/cache.service"
+import { UploadService } from "../upload/upload.service"
 import type { CreateUserDto } from "./dto/user.dto"
 import type { UpdateProfileDto } from "./dto/update-profile.dto"
 import type { Express } from "express"
@@ -103,7 +103,7 @@ export class UsersService {
       }
     }
 
-    let avatarUrl = undefined
+    let avatarUrl: string | undefined
     if (avatarFile) {
       avatarUrl = await this.uploadService.uploadImage(avatarFile, "avatars")
     }
@@ -112,7 +112,7 @@ export class UsersService {
       where: { id: userId },
       data: {
         ...updateProfileDto,
-        ...(avatarUrl && { avatar: avatarUrl }),
+        ...(avatarUrl ? { avatar: avatarUrl } : {}),
       },
     })
 

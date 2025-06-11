@@ -1,6 +1,6 @@
 import { Injectable, BadRequestException, Logger } from "@nestjs/common"
-import type { ConfigService } from "@nestjs/config"
-import * as AWS from "aws-sdk"
+import { ConfigService } from "@nestjs/config"
+import { S3 } from "aws-sdk"
 import { v4 as uuidv4 } from "uuid"
 import * as sharp from "sharp"
 import type { Express } from "express"
@@ -8,41 +8,66 @@ import type { Express } from "express"
 @Injectable()
 export class UploadService {
   private readonly logger = new Logger(UploadService.name)
-  private s3: AWS.S3
+  private s3: S3
   private bucketName: string
   private region: string
 
   constructor(private configService: ConfigService) {
-    this.s3 = new AWS.S3({
-      accessKeyId: this.configService.get("AWS_ACCESS_KEY_ID"),
-      secretAccessKey: this.configService.get("AWS_SECRET_ACCESS_KEY"),
-      region: this.configService.get("AWS_REGION"),
+    this.bucketName = this.configService.get<string>("AWS_S3_BUCKET_NAME") || ""
+    this.region = this.configService.get<string>("AWS_REGION") || ""
+
+    this.s3 = new S3({
+      region: this.region,
+      credentials: {
+        accessKeyId: this.configService.get<string>("AWS_ACCESS_KEY_ID") || "",
+        secretAccessKey: this.configService.get<string>("AWS_SECRET_ACCESS_KEY") || "",
+      },
     })
-    this.bucketName = this.configService.get("AWS_S3_BUCKET_NAME")
-    this.region = this.configService.get("AWS_REGION")
   }
 
-  async uploadFileToS3(
+  async uploadFile(
     file: Express.Multer.File | NodeJS.ReadableStream | Buffer,
-    key: string,
+    folder: string,
     contentType: string,
   ): Promise<string> {
-    const params: AWS.S3.PutObjectRequest = {
+    const key = `${folder}/${Date.now()}-${Math.random().toString(36).substring(7)}`
+
+    const params = {
       Bucket: this.bucketName,
       Key: key,
-      Body: file instanceof Buffer ? file : (file as any),
+      Body: file,
       ContentType: contentType,
       ACL: "public-read",
     }
 
-    try {
-      const result = await this.s3.upload(params).promise()
-      this.logger.log(`File uploaded successfully: ${result.Location}`)
-      return result.Location
-    } catch (error) {
-      this.logger.error(`Failed to upload file: ${error.message}`)
-      throw new BadRequestException(`Failed to upload file: ${error.message}`)
+    const result = await this.s3.upload(params).promise()
+    return result.Location
+  }
+
+  async uploadImage(file: Express.Multer.File, folder: string): Promise<string> {
+    return this.uploadFile(file, folder, file.mimetype)
+  }
+
+  async uploadVideo(file: Express.Multer.File, folder: string): Promise<string> {
+    return this.uploadFile(file, folder, file.mimetype)
+  }
+
+  async deleteFileFromS3(key: string): Promise<void> {
+    const params = {
+      Bucket: this.bucketName,
+      Key: key,
     }
+
+    await this.s3.deleteObject(params).promise()
+  }
+
+  async batchUpload(files: Express.Multer.File[]): Promise<string[]> {
+    const uploadPromises = files.map((file) => {
+      const folder = file.mimetype.startsWith("image/") ? "images" : "videos"
+      return this.uploadFile(file, folder, file.mimetype)
+    })
+
+    return Promise.all(uploadPromises)
   }
 
   async generatePresignedUrl(key: string, contentType: string, expiresIn = 3600): Promise<string> {
@@ -60,65 +85,6 @@ export class UploadService {
       this.logger.error(`Failed to generate presigned URL: ${error.message}`)
       throw new BadRequestException(`Failed to generate presigned URL: ${error.message}`)
     }
-  }
-
-  async deleteFileFromS3(key: string): Promise<void> {
-    const params = {
-      Bucket: this.bucketName,
-      Key: key,
-    }
-
-    try {
-      await this.s3.deleteObject(params).promise()
-      this.logger.log(`File deleted successfully: ${key}`)
-    } catch (error) {
-      this.logger.error(`Failed to delete file: ${error.message}`)
-      throw new BadRequestException(`Failed to delete file: ${error.message}`)
-    }
-  }
-
-  async uploadImage(file: Express.Multer.File, folder: string): Promise<string> {
-    // Validate file type
-    if (!file.mimetype.startsWith("image/")) {
-      throw new BadRequestException("Only image files are allowed")
-    }
-
-    // Validate file size (max 10MB for images)
-    const maxSize = 10 * 1024 * 1024 // 10MB
-    if (file.size > maxSize) {
-      throw new BadRequestException("Image file size too large. Maximum 10MB allowed.")
-    }
-
-    try {
-      // Process image with Sharp
-      const processedImage = await sharp(file.buffer)
-        .resize(1200, 1200, { fit: "inside", withoutEnlargement: true })
-        .jpeg({ quality: 85 })
-        .toBuffer()
-
-      const key = `${folder}/${uuidv4()}.jpg`
-      return this.uploadFileToS3(processedImage, key, "image/jpeg")
-    } catch (error) {
-      this.logger.error(`Failed to process image: ${error.message}`)
-      throw new BadRequestException(`Failed to process image: ${error.message}`)
-    }
-  }
-
-  async uploadVideo(file: Express.Multer.File, folder: string): Promise<string> {
-    // Validate file type
-    if (!file.mimetype.startsWith("video/")) {
-      throw new BadRequestException("Only video files are allowed")
-    }
-
-    // Validate file size (max 2GB)
-    const maxSize = 2 * 1024 * 1024 * 1024 // 2GB
-    if (file.size > maxSize) {
-      throw new BadRequestException("Video file size too large. Maximum 2GB allowed.")
-    }
-
-    const extension = file.originalname.split(".").pop()
-    const key = `${folder}/${uuidv4()}.${extension}`
-    return this.uploadFileToS3(file.buffer, key, file.mimetype)
   }
 
   async getFileMetadata(key: string): Promise<AWS.S3.HeadObjectOutput> {
