@@ -27,9 +27,34 @@ model User {
   ownedCommunities Community[]
   communityMembers CommunityMember[]
   videos           Video[]
-  transactions     Transaction[]
 
   @@map("users")
+}
+
+model Video {
+  id           String      @id @default(cuid())
+  title        String
+  description  String?
+  videoUrl     String?
+  videoUrls    Json?       // Multiple quality URLs
+  thumbnailUrl String?
+  duration     Float?
+  metadata     Json?
+  visibility   Visibility  @default(PUBLIC)
+  price        Float?
+  tags         String[]
+  hashtags     String[]
+  seriesId     String?
+  episodeNumber Int?
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  // Relations
+  userId      String
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  communityId String?
+
+  @@map("videos")
 }
 
 model Community {
@@ -48,7 +73,6 @@ model Community {
   ownerId String
   owner   User              @relation(fields: [ownerId], references: [id])
   members CommunityMember[]
-  videos  Video[]
 
   @@map("communities")
 }
@@ -68,50 +92,15 @@ model CommunityMember {
   @@map("community_members")
 }
 
-// Enums
+enum Visibility {
+  PUBLIC
+  UNLISTED
+  PRIVATE
+}
+
 enum CommunityRole {
   OWNER
   ADMIN
   MODERATOR
   MEMBER
-}
-
-model Video {
-  id          String   @id @default(cuid())
-  title       String
-  description String?
-  url         String
-  thumbnail   String?
-  duration    Int?
-  status      String   @default("PROCESSING")
-  viewsCount  Int      @default(0)
-  likesCount  Int      @default(0)
-  commentsCount Int    @default(0)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-  communityId String?
-  community   Community? @relation(fields: [communityId], references: [id])
-
-  @@map("videos")
-}
-
-model Transaction {
-  id          String   @id @default(cuid())
-  type        String
-  amount      Float
-  description String
-  status      String   @default("PENDING")
-  metadata    Json?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  // Relations
-  userId      String
-  user        User      @relation(fields: [userId], references: [id])
-
-  @@map("transactions")
 }

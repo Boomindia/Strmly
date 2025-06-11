@@ -197,7 +197,7 @@ export default function AuthPage() {
 
   if (step === "signup" || step === "login") {
     return (
-      <div className="min-h-screen bg-[#fe0000] flex flex-col px-6 py-8">
+      <div className="min-h-screen bg-red-500 flex flex-col px-6 py-8">
         <div className="flex items-center justify-between mb-8">
           <Button
             variant="ghost"
@@ -246,12 +246,6 @@ export default function AuthPage() {
             >
               {authLoading ? "Sending..." : "Send OTP"}
             </Button>
-
-            {authError && (
-              <div className="mt-2 text-center">
-                <p className="text-white/90 text-sm">{authError}</p>
-              </div>
-            )}
           </div>
 
           <div className="mt-8 text-center">
