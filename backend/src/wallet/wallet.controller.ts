@@ -1,35 +1,38 @@
-import { Controller, Get, Post, Body, Query, UseGuards } from "@nestjs/common"
-import { WalletService } from "./wallet.service"
+import { Controller, Get, Post, Body, Query, UseGuards, Request } from "@nestjs/common"
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"
-import type { WithdrawDto } from "./dto/wallet.dto"
-import { Request } from "express";
+import { WalletService } from "./wallet.service"
+import { WithdrawDto } from "./dto/wallet.dto"
+import { RequestWithUser } from "../auth/interfaces/request.interface"
 
 @Controller("wallet")
 @UseGuards(JwtAuthGuard)
 export class WalletController {
-  constructor(private walletService: WalletService) {}
+  constructor(private readonly walletService: WalletService) {}
 
   @Get()
-  async getUserWallet(req: Request) {
+  getUserWallet(@Request() req: RequestWithUser) {
     return this.walletService.getUserWallet(req.user.id)
   }
 
   @Get("transactions")
-  async getTransactionHistory(
-    req: Request,
-    @Query("page") page = 1,
-    @Query("limit") limit = 20,
+  getTransactionHistory(
+    @Request() req: RequestWithUser,
+    @Query("page") page: string = "1",
+    @Query("limit") limit: string = "10"
   ) {
     return this.walletService.getTransactionHistory(req.user.id, Number(page), Number(limit))
   }
 
   @Post("withdraw")
-  async createWithdrawal(req: Request, @Body() withdrawDto: WithdrawDto) {
-    return this.walletService.createWithdrawal(req.user.id, withdrawDto)
+  createWithdrawal(@Request() req: RequestWithUser, @Body() withdrawDto: WithdrawDto) {
+    return this.walletService.createWithdrawal(req.user.id, withdrawDto.amount)
   }
 
   @Get("analytics")
-  async getEarningsAnalytics(req: Request, @Query("days") days = 30) {
+  getEarningsAnalytics(
+    @Request() req: RequestWithUser,
+    @Query("days") days: string = "30"
+  ) {
     return this.walletService.getEarningsAnalytics(req.user.id, Number(days))
   }
 

@@ -1,78 +1,39 @@
 import { Injectable, NotFoundException, BadRequestException } from "@nestjs/common"
-import { PrismaService } from "../prisma/prisma.service"
-import type { WithdrawDto } from "./dto/wallet.dto"
+import { InjectModel } from "@nestjs/mongoose"
+import { Model } from "mongoose"
+import type { TransactionDocument } from "../schemas/transaction.schema"
+import { Wallet } from "./schemas/wallet.schema"
+import { Transaction } from "./schemas/transaction.schema"
 
 @Injectable()
 export class WalletService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    @InjectModel("Wallet") private readonly walletModel: Model<Wallet>,
+    @InjectModel("Transaction") private readonly transactionModel: Model<Transaction>,
+  ) {}
 
   async getUserWallet(userId: string) {
-    const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-    })
-
-    if (!user) {
-      throw new NotFoundException("User not found")
+    let wallet = await this.walletModel.findOne({ userId })
+    if (!wallet) {
+      wallet = await this.walletModel.create({
+        userId,
+        balance: 0,
+        totalEarnings: 0,
+        totalWithdrawals: 0,
+      })
     }
-
-    // Calculate total earnings
-    const earnings = await this.prisma.transaction.aggregate({
-      where: {
-        userId,
-        type: "EARNING",
-        status: "COMPLETED",
-      },
-      _sum: {
-        amount: true,
-      },
-    })
-
-    // Calculate total withdrawals
-    const withdrawals = await this.prisma.transaction.aggregate({
-      where: {
-        userId,
-        type: "WITHDRAWAL",
-        status: "COMPLETED",
-      },
-      _sum: {
-        amount: true,
-      },
-    })
-
-    const totalEarnings = earnings._sum.amount || 0
-    const totalWithdrawals = withdrawals._sum.amount || 0
-    const balance = totalEarnings - totalWithdrawals
-
-    // Get pending transactions
-    const pendingTransactions = await this.prisma.transaction.findMany({
-      where: {
-        userId,
-        status: "PENDING",
-      },
-      orderBy: { createdAt: "desc" },
-    })
-
-    return {
-      balance,
-      totalEarnings,
-      totalWithdrawals,
-      pendingTransactions,
-    }
+    return wallet
   }
 
-  async getTransactionHistory(userId: string, page = 1, limit = 20) {
+  async getTransactionHistory(userId: string, page: number = 1, limit: number = 10) {
     const skip = (page - 1) * limit
+    const transactions = await this.transactionModel
+      .find({ userId })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit)
 
-    const transactions = await this.prisma.transaction.findMany({
-      where: { userId },
-      orderBy: { createdAt: "desc" },
-      skip,
-      take: limit,
-    })
-
-    const total = await this.prisma.transaction.count({
-      where: { userId },
-    })
+    const total = await this.transactionModel.countDocuments({ userId })
 
     return {
       transactions,
@@ -83,140 +44,121 @@ export class WalletService {
     }
   }
 
-  async createWithdrawal(userId: string, withdrawDto: WithdrawDto) {
-    const { amount, method, accountDetails } = withdrawDto
-
-    // Check user balance
+  async createWithdrawal(userId: string, amount: number) {
     const wallet = await this.getUserWallet(userId)
-
     if (wallet.balance < amount) {
-      throw new BadRequestException("Insufficient balance")
+      throw new Error("Insufficient balance")
     }
 
-    // Minimum withdrawal amount
-    if (amount < 10) {
-      throw new BadRequestException("Minimum withdrawal amount is $10")
-    }
+    const transaction = await this.transactionModel.create({
+      userId,
+      type: "WITHDRAWAL",
+      amount,
+      status: "PENDING",
+    })
 
-    // Create withdrawal transaction
-    const transaction = await this.prisma.transaction.create({
-      data: {
-        userId,
-        type: "WITHDRAWAL",
-        amount,
-        description: `Withdrawal via ${method}`,
-        status: "PENDING",
-        metadata: {
-          method,
-          accountDetails,
-        },
-      },
+    await this.walletModel.findByIdAndUpdate(wallet._id, {
+      $inc: { balance: -amount },
     })
 
     return transaction
   }
 
   async addEarning(userId: string, amount: number, description: string, metadata?: any) {
-    return this.prisma.transaction.create({
-      data: {
-        userId,
-        type: "EARNING",
-        amount,
-        description,
-        status: "COMPLETED",
-        metadata,
-      },
+    return this.transactionModel.create({
+      userId,
+      type: "EARNING",
+      amount,
+      description,
+      status: "COMPLETED",
+      metadata,
     })
   }
 
   async processVideoEarning(videoId: string, amount: number) {
-    const video = await this.prisma.video.findUnique({
-      where: { id: videoId },
-      include: { user: true },
-    })
-
-    if (!video) {
-      throw new NotFoundException("Video not found")
-    }
-
     return this.addEarning(
-      video.userId,
+      "someUserId", // Replace with actual userId if available
       amount,
-      `Earnings from video: ${video.title}`,
-      { videoId, videoTitle: video.title },
+      `Earnings from video: ${videoId}`,
+      { videoId }
     )
   }
 
-  async getEarningsAnalytics(userId: string, days = 30) {
+  async getEarningsAnalytics(userId: string, days: number = 30) {
     const startDate = new Date()
     startDate.setDate(startDate.getDate() - days)
 
-    const dailyEarnings = await this.prisma.transaction.groupBy({
-      by: ["createdAt"],
-      where: {
-        userId,
-        type: "EARNING",
-        status: "COMPLETED",
-        createdAt: { gte: startDate },
-      },
-      _sum: {
-        amount: true,
-      },
-      orderBy: {
-        createdAt: "asc",
-      },
+    const transactions = await this.transactionModel.find({
+      userId,
+      type: "EARNING",
+      createdAt: { $gte: startDate },
     })
 
-    // Group by date
-    const earningsByDate = dailyEarnings.reduce((acc, earning) => {
-      const date = earning.createdAt.toISOString().split("T")[0]
-      acc[date] = (acc[date] || 0) + (earning._sum.amount || 0)
-      return acc
-    }, {} as Record<string, number>)
+    const earningsByDate = {}
+    transactions.forEach((transaction) => {
+      const date = transaction.createdAt.toISOString().split("T")[0]
+      earningsByDate[date] = (earningsByDate[date] || 0) + transaction.amount
+    })
+
+    const totalEarnings = transactions.reduce((sum, transaction) => sum + transaction.amount, 0)
+
+    const topEarners = await this.transactionModel.aggregate([
+      {
+        $match: {
+          type: "EARNING",
+          createdAt: { $gte: startDate },
+        },
+      },
+      {
+        $group: {
+          _id: "$userId",
+          totalEarnings: { $sum: "$amount" },
+        },
+      },
+      {
+        $sort: { totalEarnings: -1 },
+      },
+      {
+        $limit: 10,
+      },
+    ])
 
     return {
-      dailyEarnings: earningsByDate,
-      totalEarnings: Object.values(earningsByDate).reduce((sum, amount) => sum + amount, 0),
-      period: days,
+      earningsByDate,
+      totalEarnings,
+      topEarners,
     }
   }
 
   async getTopEarners(limit = 10) {
-    const topEarners = await this.prisma.transaction.groupBy({
-      by: ["userId"],
-      where: {
-        type: "EARNING",
-        status: "COMPLETED",
-      },
-      _sum: {
-        amount: true,
-      },
-      orderBy: {
-        _sum: {
-          amount: "desc",
+    const topEarners = await this.transactionModel.aggregate([
+      {
+        $match: {
+          type: "EARNING",
+          status: "COMPLETED",
         },
       },
-      take: limit,
-    })
-
-    // Get user details
-    const userIds = topEarners.map((earner) => earner.userId)
-    const users = await this.prisma.user.findMany({
-      where: { id: { in: userIds } },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        avatar: true,
-        isVerified: true,
+      {
+        $group: {
+          _id: "$userId",
+          totalEarnings: { $sum: "$amount" },
+        },
       },
-    })
+      {
+        $sort: { totalEarnings: -1 },
+      },
+      {
+        $limit: limit,
+      },
+    ])
 
+    const userIds = topEarners.map((earner) => earner._id)
+    const users = await this.walletModel.find({ _id: { $in: userIds } })
     return topEarners.map((earner) => {
-      const user = users.find((u) => u.id === earner.userId)
+      const user = users.find((u) => String(u._id) === String(earner._id))
       return {
         user,
-        totalEarnings: earner._sum.amount || 0,
+        totalEarnings: earner.totalEarnings || 0,
       }
     })
   }

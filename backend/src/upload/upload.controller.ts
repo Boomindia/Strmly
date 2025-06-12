@@ -1,92 +1,71 @@
-import { Controller, Post, Get, Delete, UseInterceptors, UseGuards, Request, Body, Param, Query, BadRequestException } from "@nestjs/common"
+import { Controller, Post, Get, Delete, UseInterceptors, UseGuards, Request, Body, Param, Query, BadRequestException, UploadedFile } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
-import type { UploadService } from "./upload.service"
+import { UploadService } from "./upload.service"
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"
 import type { Express } from "express"
 import type { GeneratePresignedUrlDto, DeleteFileDto } from "./dto/upload.dto"
+import { RequestWithUser } from "../auth/interfaces/request.interface"
 
 @Controller("upload")
 @UseGuards(JwtAuthGuard)
 export class UploadController {
-  constructor(private uploadService: UploadService) {}
+  constructor(private readonly uploadService: UploadService) {}
 
   @Post("image")
-  @UseInterceptors(FileInterceptor("image"))
-  async uploadImage(file: Express.Multer.File, @Request() req: any) {
-    if (!file) {
-      throw new BadRequestException("No image file provided")
-    }
-
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadImage(
+    @Request() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File
+  ) {
     const userId = req.user.id
-    const imageUrl = await this.uploadService.uploadImage(file, `images/${userId}`)
-
-    return {
-      success: true,
-      imageUrl,
-      filename: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype,
-    }
+    return this.uploadService.uploadImage(file, "images")
   }
 
   @Post("video")
-  @UseInterceptors(FileInterceptor("video"))
-  async uploadVideo(file: Express.Multer.File, @Request() req: any) {
-    if (!file) {
-      throw new BadRequestException("No video file provided")
-    }
-
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadVideo(
+    @Request() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File
+  ) {
     const userId = req.user.id
-    const videoUrl = await this.uploadService.uploadVideo(file, `videos/${userId}`)
-
-    return {
-      success: true,
-      videoUrl,
-      filename: file.originalname,
-      size: file.size,
-      mimeType: file.mimetype,
-      duration: null, // Will be populated after processing
-    }
+    return this.uploadService.uploadFile(file, "videos", "video/mp4")
   }
 
   @Post("avatar")
-  @UseInterceptors(FileInterceptor("avatar"))
-  async uploadAvatar(file: Express.Multer.File, @Request() req: any) {
-    if (!file) {
-      throw new BadRequestException("No avatar file provided")
-    }
-
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadAvatar(
+    @Request() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File
+  ) {
     const userId = req.user.id
-    const avatarUrl = await this.uploadService.uploadImage(file, `avatars/${userId}`)
+    return this.uploadService.uploadImage(file, "avatars")
+  }
 
-    return {
-      success: true,
-      avatarUrl,
-      filename: file.originalname,
-      size: file.size,
-    }
+  @Post("banner")
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadBanner(
+    @Request() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File
+  ) {
+    const userId = req.user.id
+    return this.uploadService.uploadImage(file, "banners")
   }
 
   @Post("thumbnail")
-  @UseInterceptors(FileInterceptor("thumbnail"))
-  async uploadThumbnail(file: Express.Multer.File, @Request() req: any) {
-    if (!file) {
-      throw new BadRequestException("No thumbnail file provided")
-    }
-
+  @UseInterceptors(FileInterceptor("file"))
+  async uploadThumbnail(
+    @Request() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File
+  ) {
     const userId = req.user.id
-    const thumbnailUrl = await this.uploadService.uploadImage(file, `thumbnails/${userId}`)
-
-    return {
-      success: true,
-      thumbnailUrl,
-      filename: file.originalname,
-      size: file.size,
-    }
+    return this.uploadService.uploadImage(file, "thumbnails")
   }
 
   @Post("presigned-url")
-  async generatePresignedUrl(@Body() generatePresignedUrlDto: GeneratePresignedUrlDto, @Request() req: any) {
+  async generatePresignedUrl(
+    @Body() generatePresignedUrlDto: GeneratePresignedUrlDto,
+    @Request() req: RequestWithUser
+  ) {
     const userId = req.user.id
     const { fileType, fileName, contentType } = generatePresignedUrlDto
 
@@ -120,7 +99,10 @@ export class UploadController {
   }
 
   @Get("metadata/:key")
-  async getFileMetadata(@Param("key") key: string, @Request() req: any) {
+  async getFileMetadata(
+    @Param("key") key: string,
+    @Request() req: RequestWithUser
+  ) {
     // Verify user owns this file by checking if key contains their user ID
     const userId = req.user.id
     if (!key.includes(userId)) {
@@ -141,7 +123,10 @@ export class UploadController {
   }
 
   @Delete("file")
-  async deleteFile(@Body() deleteFileDto: DeleteFileDto, @Request() req: any) {
+  async deleteFile(
+    @Body() deleteFileDto: DeleteFileDto,
+    @Request() req: RequestWithUser
+  ) {
     const userId = req.user.id
     const { key } = deleteFileDto
 
@@ -159,7 +144,11 @@ export class UploadController {
   }
 
   @Get("signed-url/:key")
-  async getSignedUrl(@Param("key") key: string, @Query("expires") expires = 3600, @Request() req: any) {
+  async getSignedUrl(
+    @Param("key") key: string,
+    @Query("expires") expires = 3600,
+    @Request() req: RequestWithUser
+  ) {
     const userId = req.user.id
 
     // Verify user owns this file
@@ -178,7 +167,10 @@ export class UploadController {
 
   @Post("batch-upload")
   @UseInterceptors(FileInterceptor("files"))
-  async batchUpload(files: Express.Multer.File[], @Request() req: any) {
+  async batchUpload(
+    @UploadedFile() files: Express.Multer.File[],
+    @Request() req: RequestWithUser
+  ) {
     if (!files || files.length === 0) {
       throw new BadRequestException("No files provided")
     }

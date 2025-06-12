@@ -1,5 +1,5 @@
 import { Module } from "@nestjs/common"
-import { ConfigModule } from "@nestjs/config"
+import { ConfigModule, ConfigService } from "@nestjs/config"
 import { ThrottlerModule } from "@nestjs/throttler"
 import { MongooseModule } from "@nestjs/mongoose"
 import { PrismaModule } from "./prisma/prisma.module"
@@ -40,9 +40,11 @@ import { WalletModule } from "./wallet/wallet.module"
       },
     ]),
     MongooseModule.forRootAsync({
-      useFactory: () => ({
-        uri: process.env.MONGODB_URI,
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get('MONGODB_URI'),
       }),
+      inject: [ConfigService],
     }),
     PrismaModule,
     DatabaseModule,

@@ -26,18 +26,15 @@ model User {
   // Relations (only PostgreSQL relations)
   ownedCommunities Community[]
   communityMembers CommunityMember[]
+  videos           Video[]
 
   @@map("users")
 }
 
-<<<<<<< HEAD
-=======
 model Video {
   id           String      @id @default(cuid())
   title        String
   description  String?
-  type         VideoType   @default(SHORT)
-  status       VideoStatus @default(DRAFT)
   videoUrl     String?
   videoUrls    Json?       // Multiple quality URLs
   thumbnailUrl String?
@@ -56,16 +53,10 @@ model Video {
   userId      String
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
   communityId String?
-  community   Community?   @relation(fields: [communityId], references: [id])
-  likes       Like[]
-  comments    Comment[]
-  shares      Share[]
-  views       View[]
 
   @@map("videos")
 }
 
->>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5
 model Community {
   id          String    @id @default(cuid())
   name        String
@@ -82,10 +73,6 @@ model Community {
   ownerId String
   owner   User              @relation(fields: [ownerId], references: [id])
   members CommunityMember[]
-<<<<<<< HEAD
-=======
-  videos  Video[]
->>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5
 
   @@map("communities")
 }
@@ -105,141 +92,15 @@ model CommunityMember {
   @@map("community_members")
 }
 
-<<<<<<< HEAD
-// Enums
-=======
-model Follow {
-  id          String   @id @default(cuid())
-  createdAt   DateTime @default(now())
-
-  // Relations
-  followerId  String
-  follower    User     @relation("UserFollowing", fields: [followerId], references: [id], onDelete: Cascade)
-  followingId String
-  following   User     @relation("UserFollowers", fields: [followingId], references: [id], onDelete: Cascade)
-
-  @@unique([followerId, followingId])
-  @@map("follows")
-}
-
-model Like {
-  id        String   @id @default(cuid())
-  createdAt DateTime @default(now())
-
-  // Relations
-  userId  String
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoId String
-  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@unique([userId, videoId])
-  @@map("likes")
-}
-
-model Comment {
-  id        String   @id @default(cuid())
-  content   String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Relations
-  userId   String
-  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoId  String
-  video    Video     @relation(fields: [videoId], references: [id], onDelete: Cascade)
-  parentId String?
-  parent   Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies  Comment[] @relation("CommentReplies")
-
-  @@map("comments")
-}
-
-model Share {
-  id        String   @id @default(cuid())
-  platform  String?
-  createdAt DateTime @default(now())
-
-  // Relations
-  userId  String
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoId String
-  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@map("shares")
-}
-
-model View {
-  id        String   @id @default(cuid())
-  duration  Float?   // How long the user watched
-  createdAt DateTime @default(now())
-
-  // Relations
-  userId  String
-  user    User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  videoId String
-  video   Video  @relation(fields: [videoId], references: [id], onDelete: Cascade)
-
-  @@map("views")
-}
-
-model Transaction {
-  id          String            @id @default(cuid())
-  type        TransactionType
-  amount      Float
-  description String
-  status      TransactionStatus @default(PENDING)
-  metadata    Json?
-  createdAt   DateTime          @default(now())
-  updatedAt   DateTime          @updatedAt
-
-  // Relations
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("transactions")
-}
-
-// Enums
-enum VideoType {
-  SHORT
-  LONG
-}
-
-enum VideoStatus {
-  DRAFT
-  PROCESSING
-  PUBLISHED
-  FAILED
-  PRIVATE
-}
-
 enum Visibility {
   PUBLIC
   UNLISTED
   PRIVATE
 }
 
->>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5
 enum CommunityRole {
   OWNER
   ADMIN
   MODERATOR
   MEMBER
 }
-<<<<<<< HEAD
-=======
-
-enum TransactionType {
-  EARNING
-  WITHDRAWAL
-  TIP
-  PURCHASE
-}
-
-enum TransactionStatus {
-  PENDING
-  COMPLETED
-  FAILED
-  CANCELLED
-}
->>>>>>> a3739ad43699368524adb040f5c7082d1167d5d5

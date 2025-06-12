@@ -5,6 +5,8 @@ import { VideoProcessingService } from "./video-processing.service"
 import { VideoProcessingProcessor } from "./video-processing.processor"
 import { VideoProcessingController } from "./video-processing.controller"
 import { UploadModule } from "../upload/upload.module"
+import { MongooseModule } from "@nestjs/mongoose"
+import { Video, VideoSchema } from "../schemas/video.schema"
 
 @Module({
   imports: [
@@ -22,6 +24,7 @@ import { UploadModule } from "../upload/upload.module"
     BullModule.registerQueue({
       name: "video-processing",
     }),
+    MongooseModule.forFeature([{ name: Video.name, schema: VideoSchema }]),
     UploadModule,
   ],
   providers: [VideoProcessingService, VideoProcessingProcessor],

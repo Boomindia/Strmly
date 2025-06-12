@@ -1,9 +1,10 @@
-import { Controller, Get, Put, Post, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile} from "@nestjs/common"
+import { Controller, Get, Put, Post, Body, Param, Query, UseGuards, UseInterceptors, UploadedFile, Request } from "@nestjs/common"
 import { FileInterceptor } from "@nestjs/platform-express"
-import type { UsersService } from "./users.service"
+import { UsersService } from "./users.service"
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"
 import type { UpdateProfileDto } from "./dto/update-profile.dto"
 import type { Express } from "express"
+import { RequestWithUser } from "../auth/interfaces/request.interface"
 
 @Controller("users")
 @UseGuards(JwtAuthGuard)
@@ -11,14 +12,14 @@ export class UsersController {
   constructor(private usersService: UsersService) {}
 
   @Get("profile")
-  async getProfile(req: any) {
+  async getProfile(@Request() req: RequestWithUser) {
     return this.usersService.getUserProfile(req.user.id)
   }
 
   @Put("profile")
   @UseInterceptors(FileInterceptor("avatar"))
   async updateProfile(
-    req: any,
+    @Request() req: RequestWithUser,
     @Body() updateProfileDto: UpdateProfileDto,
     @UploadedFile() avatarFile?: Express.Multer.File,
   ) {
@@ -26,12 +27,12 @@ export class UsersController {
   }
 
   @Get(":username")
-  async getUserByUsername(@Param("username") username: string, req: any) {
+  async getUserByUsername(@Param("username") username: string, @Request() req: RequestWithUser) {
     return this.usersService.getUserByUsername(username, req.user?.id)
   }
 
   @Post(":userId/follow")
-  async followUser(@Param("userId") userId: string, req: any) {
+  async followUser(@Param("userId") userId: string, @Request() req: RequestWithUser) {
     return this.usersService.followUser(req.user.id, userId)
   }
 

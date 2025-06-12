@@ -1,8 +1,13 @@
 import { Processor, Process } from "@nestjs/bull"
 import type { Job } from "bull"
 import { Logger } from "@nestjs/common"
-import type { VideoProcessingService, VideoProcessingJob } from "./video-processing.service"
-import type { PrismaService } from "../prisma/prisma.service"
+import { VideoProcessingService } from "./video-processing.service"
+import { PrismaService } from "../prisma/prisma.service"
+import { InjectModel } from "@nestjs/mongoose"
+import { Model } from "mongoose"
+import { Video } from "../schemas/video.schema"
+import type { VideoDocument } from "../schemas/video.schema"
+import type { VideoProcessingJob } from "./video-processing.service"
 
 @Processor("video-processing")
 export class VideoProcessingProcessor {
@@ -11,6 +16,7 @@ export class VideoProcessingProcessor {
   constructor(
     private videoProcessingService: VideoProcessingService,
     private prisma: PrismaService,
+    @InjectModel(Video.name) private videoModel: Model<VideoDocument>
   ) {}
 
   @Process("process-video")
@@ -21,24 +27,20 @@ export class VideoProcessingProcessor {
       this.logger.log(`Processing video ${videoId}`)
 
       // Update video status to processing
-      await this.prisma.video.update({
-        where: { id: videoId },
-        data: { status: "PROCESSING" },
+      await this.videoModel.findByIdAndUpdate(videoId, {
+        status: "PROCESSING",
       })
 
       // Process the video
       const result = await this.videoProcessingService.processVideo(job.data)
 
       // Update video with processed data
-      await this.prisma.video.update({
-        where: { id: videoId },
-        data: {
-          status: "PUBLISHED",
-          thumbnailUrl: result.thumbnailUrl,
-          videoUrls: result.videoUrls,
-          duration: result.metadata.duration,
-          metadata: result.metadata,
-        },
+      await this.videoModel.findByIdAndUpdate(videoId, {
+        status: "PUBLISHED",
+        thumbnailUrl: result.thumbnailUrl,
+        videoUrls: result.videoUrls,
+        duration: result.metadata.duration,
+        metadata: result.metadata,
       })
 
       this.logger.log(`Video ${videoId} processed successfully`)
@@ -47,9 +49,11 @@ export class VideoProcessingProcessor {
       this.logger.error(`Failed to process video ${videoId}:`, error)
 
       // Update video status to failed
-      await this.prisma.video.update({
-        where: { id: videoId },
-        data: { status: "FAILED" },
+      await this.videoModel.findByIdAndUpdate(videoId, {
+        status: "FAILED",
+        metadata: {
+          error: error.message,
+        },
       })
 
       throw error
