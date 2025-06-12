@@ -3,7 +3,7 @@ import { JwtService } from "@nestjs/jwt"
 import { ConfigService } from "@nestjs/config"
 import * as admin from "firebase-admin"
 import { PrismaService } from "../prisma/prisma.service"
-import type { SignupDto, LoginDto, VerifyOtpDto } from "./dto/auth.dto"
+import type { SignupDto, LoginDto, VerifyOtpDto, CheckUserDto } from "./dto/auth.dto"
 
 @Injectable()
 export class AuthService {
@@ -159,5 +159,53 @@ export class AuthService {
     }
 
     return user
+  }
+
+  async checkUser(checkUserDto: CheckUserDto) {
+    const { idToken, provider } = checkUserDto
+
+    try {
+      // Verify the ID token
+      const decodedToken = await admin.auth().verifyIdToken(idToken)
+      const { email, name, picture } = decodedToken
+
+      // Check if user exists
+      const user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email },
+            { socialId: decodedToken.uid },
+          ],
+        },
+      })
+
+      if (user) {
+        // User exists, generate JWT token
+        const accessToken = this.jwtService.sign({
+          sub: user.id,
+          email: user.email,
+        })
+
+        return {
+          exists: true,
+          user,
+          accessToken,
+        }
+      }
+
+      // User doesn't exist
+      return {
+        exists: false,
+        user: {
+          email,
+          name,
+          picture,
+          socialId: decodedToken.uid,
+          provider,
+        },
+      }
+    } catch (error) {
+      throw new UnauthorizedException('Invalid ID token')
+    }
   }
 }

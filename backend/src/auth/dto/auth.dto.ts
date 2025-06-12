@@ -1,4 +1,4 @@
-import { IsString, IsOptional, IsEmail, IsPhoneNumber } from "class-validator"
+import { IsString, IsOptional, IsEmail, IsPhoneNumber, IsIn } from "class-validator"
 
 export class SignupDto {
   @IsString()
@@ -32,4 +32,13 @@ export class VerifyOtpDto {
     name: string
     email?: string
   }
+}
+
+export class CheckUserDto {
+  @IsString()
+  idToken: string
+
+  @IsString()
+  @IsIn(['google', 'facebook'])
+  provider: 'google' | 'facebook'
 }

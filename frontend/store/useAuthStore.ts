@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { auth } from '@/lib/firebase'
-import { RecaptchaVerifier, signInWithPhoneNumber } from 'firebase/auth'
+import { RecaptchaVerifier, signInWithPhoneNumber, GoogleAuthProvider, FacebookAuthProvider, signInWithPopup } from 'firebase/auth'
 
 type User = {
   id: string
@@ -24,6 +24,7 @@ type AuthStore = {
   setError: (error: string | null) => void
   sendOTP: (phoneNumber: string) => Promise<void>
   verifyOTP: (otp: string) => Promise<void>
+  handleSocialLogin: (provider: 'google' | 'facebook') => Promise<void>
   logout: () => void
 }
 
@@ -113,6 +114,78 @@ export const useAuthStore = create<AuthStore>((set) => ({
       localStorage.setItem('token', data.accessToken)
     } catch (error) {
       set({ loading: false, error: error instanceof Error ? error.message : 'Failed to verify OTP' })
+    }
+  },
+  
+  handleSocialLogin: async (provider) => {
+    try {
+      set({ loading: true, error: null })
+      
+      let authProvider
+      if (provider === 'google') {
+        authProvider = new GoogleAuthProvider()
+        // Add scopes for Google
+        authProvider.addScope('profile')
+        authProvider.addScope('email')
+      } else {
+        authProvider = new FacebookAuthProvider()
+        // Add scopes for Facebook
+        authProvider.addScope('email')
+        authProvider.addScope('public_profile')
+      }
+      
+      // Sign in with popup
+      const result = await signInWithPopup(auth, authProvider)
+      const idToken = await result.user.getIdToken()
+      
+      // Check if user exists
+      const response = await fetch('/api/auth/check-user', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          idToken,
+          provider,
+        }),
+      })
+      
+      if (!response.ok) {
+        throw new Error('Failed to check user')
+      }
+      
+      const data = await response.json()
+      
+      if (data.exists) {
+        // User exists, log them in
+        set({
+          isLoggedIn: true,
+          user: data.user,
+          loading: false,
+        })
+        localStorage.setItem('token', data.accessToken)
+      } else {
+        // User doesn't exist, redirect to registration
+        set({
+          isLoggedIn: false,
+          user: null,
+          loading: false,
+        })
+        // You can add a state to indicate that registration is needed
+        // and redirect to the registration page
+      }
+    } catch (error) {
+      console.error('Social login error:', error)
+      set({ 
+        loading: false, 
+        error: error instanceof Error ? error.message : 'Failed to sign in with ' + provider 
+      })
+      // If the popup was blocked, show a more specific error
+      if (error.code === 'auth/popup-blocked') {
+        set({ error: 'Please allow popups for this website to sign in with ' + provider })
+      } else if (error.code === 'auth/popup-closed-by-user') {
+        set({ error: 'Sign in was cancelled. Please try again.' })
+      }
     }
   },
   
