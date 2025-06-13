@@ -31,14 +31,25 @@ export class VerifyOtpDto {
   userData?: {
     name: string
     email?: string
+    phoneNumber: string
   }
 }
 
 export class CheckUserDto {
-  @IsString()
-  idToken: string
+  email: string
+  provider: string
+  providerAccountId: string
+}
 
-  @IsString()
-  @IsIn(['google', 'facebook'])
-  provider: 'google' | 'facebook'
+export class RegisterDto {
+  email: string
+  name: string
+  picture?: string
+  provider: string
+  providerAccountId: string
+  username?: string
+  gender?: string
+  selectedPreferences?: string[]
+  selectedLanguages?: string[]
+  location?: string
 }

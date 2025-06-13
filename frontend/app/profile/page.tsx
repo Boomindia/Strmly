@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import {
   Settings,
   Grid,
@@ -21,21 +21,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
-
-const mockUserData = {
-  name: "Gabar Singh",
-  username: "@gabar_singh",
-  bio: "Entrepreneur | Tech Enthusiast | Building the future 🚀",
-  location: "Mumbai, India",
-  website: "gabarsingh.com",
-  joinedDate: "March 2023",
-  avatar: "/placeholder.svg?height=120&width=120",
-  coverImage: "/placeholder.svg?height=200&width=800",
-  followers: 12500,
-  following: 890,
-  posts: 156,
-  isVerified: true,
-}
+import { useSession } from "next-auth/react"
+import { useRouter } from "next/navigation"
 
 const mockPosts = [
   { id: 1, image: "/placeholder.svg?height=300&width=300", type: "image" },
@@ -48,12 +35,44 @@ const mockPosts = [
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("posts")
+  const { data: session, status } = useSession()
+  const router = useRouter()
+
+  useEffect(() => {
+    if (status === "unauthenticated") {
+      router.push("/auth")
+    }
+  }, [status, router])
+
+  if (status === "loading") {
+    return <div>Loading...</div>
+  }
+
+  if (!session?.user) {
+    return null
+  }
+
+  const userData = {
+    name: session.user.name || "User",
+    email: session.user.email || "",
+    image: session.user.image || "/placeholder.svg?height=120&width=120",
+    username: session.user.email?.split("@")[0] || "user",
+    bio: "Welcome to my profile! 👋",
+    location: "Not specified",
+    website: "",
+    joinedDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
+    coverImage: "/placeholder.svg?height=200&width=800",
+    followers: 0,
+    following: 0,
+    posts: 0,
+    isVerified: false,
+  }
 
   return (
     <div className="pb-20 md:pb-4">
       {/* Cover Image */}
       <div className="relative h-48 md:h-64 bg-gradient-to-r from-primary/20 to-primary/40">
-        <Image src={mockUserData.coverImage || "/placeholder.svg"} alt="Cover" fill className="object-cover" />
+        <Image src={userData.coverImage} alt="Cover" fill className="object-cover" />
         <div className="absolute top-4 right-4">
           <Link href="/profile/edit">
             <Button variant="secondary" size="sm">
@@ -68,48 +87,52 @@ export default function ProfilePage() {
       <div className="px-4 -mt-16 relative z-10">
         <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
           <Avatar className="w-32 h-32 border-4 border-background mb-4 md:mb-0">
-            <AvatarImage src={mockUserData.avatar || "/placeholder.svg"} />
-            <AvatarFallback className="text-2xl">{mockUserData.name[0]}</AvatarFallback>
+            <AvatarImage src={userData.image} />
+            <AvatarFallback className="text-2xl">{userData.name[0]}</AvatarFallback>
           </Avatar>
 
           <div className="flex-1">
             <div className="flex items-center space-x-2 mb-2">
-              <h1 className="text-2xl font-bold">{mockUserData.name}</h1>
-              {mockUserData.isVerified && (
+              <h1 className="text-2xl font-bold">{userData.name}</h1>
+              {userData.isVerified && (
                 <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                   <span className="text-primary-foreground text-xs">✓</span>
                 </div>
               )}
             </div>
-            <p className="text-muted-foreground mb-2">{mockUserData.username}</p>
-            <p className="mb-3">{mockUserData.bio}</p>
+            <p className="text-muted-foreground mb-2">@{userData.username}</p>
+            <p className="mb-3">{userData.bio}</p>
 
             <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-              <div className="flex items-center">
-                <MapPin size={14} className="mr-1" />
-                {mockUserData.location}
-              </div>
-              <div className="flex items-center">
-                <LinkIcon size={14} className="mr-1" />
-                {mockUserData.website}
-              </div>
+              {userData.location !== "Not specified" && (
+                <div className="flex items-center">
+                  <MapPin size={14} className="mr-1" />
+                  {userData.location}
+                </div>
+              )}
+              {userData.website && (
+                <div className="flex items-center">
+                  <LinkIcon size={14} className="mr-1" />
+                  {userData.website}
+                </div>
+              )}
               <div className="flex items-center">
                 <Calendar size={14} className="mr-1" />
-                Joined {mockUserData.joinedDate}
+                Joined {userData.joinedDate}
               </div>
             </div>
 
             <div className="flex space-x-6 mb-4">
               <div className="text-center">
-                <p className="font-bold text-lg">{mockUserData.posts}</p>
+                <p className="font-bold text-lg">{userData.posts}</p>
                 <p className="text-sm text-muted-foreground">Posts</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-lg">{mockUserData.followers.toLocaleString()}</p>
+                <p className="font-bold text-lg">{userData.followers.toLocaleString()}</p>
                 <p className="text-sm text-muted-foreground">Followers</p>
               </div>
               <div className="text-center">
-                <p className="font-bold text-lg">{mockUserData.following}</p>
+                <p className="font-bold text-lg">{userData.following}</p>
                 <p className="text-sm text-muted-foreground">Following</p>
               </div>
             </div>
@@ -190,7 +213,7 @@ export default function ProfilePage() {
               {mockPosts.map((post) => (
                 <div key={post.id} className="aspect-square relative group cursor-pointer">
                   <Image
-                    src={post.image || "/placeholder.svg"}
+                    src={post.image}
                     alt={`Post ${post.id}`}
                     fill
                     className="object-cover rounded-sm"
@@ -213,7 +236,7 @@ export default function ProfilePage() {
                 .map((post) => (
                   <div key={post.id} className="aspect-[9/16] relative group cursor-pointer">
                     <Image
-                      src={post.image || "/placeholder.svg"}
+                      src={post.image}
                       alt={`Video ${post.id}`}
                       fill
                       className="object-cover rounded-lg"
@@ -229,9 +252,8 @@ export default function ProfilePage() {
           </TabsContent>
 
           <TabsContent value="saved" className="mt-6">
-            <div className="text-center py-12">
-              <Bookmark size={48} className="mx-auto text-muted-foreground mb-4" />
-              <p className="text-muted-foreground">No saved posts yet</p>
+            <div className="text-center py-8">
+              <p className="text-muted-foreground">No saved items yet</p>
             </div>
           </TabsContent>
         </Tabs>

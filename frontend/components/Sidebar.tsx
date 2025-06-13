@@ -8,17 +8,15 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from "@/components/ui/switch"
 import Link from "next/link"
 import { useTheme } from "@/components/ThemeProvider"
-import { useAuthStore } from "@/store/useAuthStore"
+import { signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
 
 export default function Sidebar() {
   const { theme, setTheme } = useTheme()
-  const setIsLoggedIn = useAuthStore((state) => state.setIsLoggedIn)
   const router = useRouter()
 
-  const handleLogout = () => {
-    setIsLoggedIn(false)
-    localStorage.removeItem("user")
+  const handleLogout = async () => {
+    await signOut({ redirect: false })
     router.push("/auth")
   }
 
@@ -66,9 +64,9 @@ export default function Sidebar() {
               </div>
               <Switch checked={theme === "dark"} onCheckedChange={toggleTheme} />
             </DropdownMenuItem>
-            <DropdownMenuItem onClick={handleLogout}>
+            <DropdownMenuItem onClick={handleLogout} className="text-red-500">
               <LogOut className="mr-2" size={18} />
-              Logout
+              Sign Out
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>

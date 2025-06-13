@@ -145,8 +145,13 @@ export default function UploadPage() {
         }
         return true
       case 4:
-        return formData.genre !== "" && formData.ageRestriction !== ""
+        if (formData.accessType === "paid") {
+          return formData.price !== "" && Number(formData.price) > 0
+        }
+        return true
       case 5:
+        return formData.genre !== "" && formData.ageRestriction !== ""
+      case 6:
         return formData.tags.length > 0
       default:
         return true

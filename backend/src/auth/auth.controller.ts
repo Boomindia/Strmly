@@ -23,13 +23,34 @@ export class AuthController {
   }
 
   @Post("check-user")
-  async checkUser(checkUserDto: CheckUserDto) {
+  async checkUser(@Body() checkUserDto: CheckUserDto) {
     return this.authService.checkUser(checkUserDto)
+  }
+
+  @Post("register")
+  async register(@Body() registerDto: any) {
+    return this.authService.register(registerDto)
+  }
+
+  @Post("nextauth-callback")
+  async handleNextAuthCallback(@Body() data: any) {
+    const { account, profile } = data
+
+    // Create or update user
+    const user = await this.authService.handleNextAuthUser({
+      email: profile.email,
+      name: profile.name,
+      picture: profile.picture,
+      provider: account.provider,
+      providerAccountId: account.providerAccountId,
+    })
+
+    return user
   }
 
   @Get("me")
   @UseGuards(JwtAuthGuard)
-  async getProfile(req) {
+  async getProfile(@Request() req) {
     return req.user
   }
 }
