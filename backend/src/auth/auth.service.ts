@@ -1,7 +1,6 @@
 import { Injectable, UnauthorizedException, ConflictException } from "@nestjs/common"
 import { JwtService } from "@nestjs/jwt"
 import { ConfigService } from "@nestjs/config"
-import * as admin from "firebase-admin"
 import { PrismaService } from "../prisma/prisma.service"
 import type { SignupDto, LoginDto, VerifyOtpDto, CheckUserDto } from "./dto/auth.dto"
 
@@ -11,18 +10,7 @@ export class AuthService {
     private prisma: PrismaService,
     private jwtService: JwtService,
     private configService: ConfigService,
-  ) {
-    // Initialize Firebase Admin
-    if (!admin.apps.length) {
-      admin.initializeApp({
-        credential: admin.credential.cert({
-          projectId: process.env.FIREBASE_PROJECT_ID,
-          privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, "\n"),
-          clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
-        }),
-      })
-    }
-  }
+  ) {}
 
   async signup(signupDto: SignupDto) {
     const { name, phoneNumber, countryCode } = signupDto
@@ -76,26 +64,17 @@ export class AuthService {
     const { idToken, userData } = verifyOtpDto
 
     try {
-      // Verify Firebase ID token
-      const decodedToken = await admin.auth().verifyIdToken(idToken)
-      const firebaseUid = decodedToken.uid
-      const phoneNumber = decodedToken.phone_number
-
-      if (!phoneNumber) {
-        throw new UnauthorizedException("Phone number not found in token")
+      if (!userData) {
+        throw new UnauthorizedException("User data is required")
       }
 
       // Check if user exists
       let user = await this.prisma.user.findUnique({
-        where: { firebaseUid },
+        where: { phoneNumber: userData.phoneNumber },
       })
 
       if (!user) {
         // Create new user if doesn't exist
-        if (!userData) {
-          throw new UnauthorizedException("User data required for new registration")
-        }
-
         // Generate unique username
         let username = userData.name.toLowerCase().replace(/\s+/g, "_")
         let counter = 1
@@ -107,8 +86,7 @@ export class AuthService {
 
         user = await this.prisma.user.create({
           data: {
-            firebaseUid,
-            phoneNumber,
+            phoneNumber: userData.phoneNumber,
             name: userData.name,
             username,
             email: userData.email,
@@ -162,20 +140,26 @@ export class AuthService {
   }
 
   async checkUser(checkUserDto: CheckUserDto) {
-    const { idToken, provider } = checkUserDto
+    const { email, provider, providerAccountId } = checkUserDto
 
     try {
-      // Verify the ID token
-      const decodedToken = await admin.auth().verifyIdToken(idToken)
-      const { email, name, picture } = decodedToken
-
-      // Check if user exists
+      // Check if user exists by email or provider account
       const user = await this.prisma.user.findFirst({
         where: {
           OR: [
             { email },
-            { socialId: decodedToken.uid },
+            {
+              accounts: {
+                some: {
+                  provider,
+                  providerAccountId,
+                },
+              },
+            },
           ],
+        },
+        include: {
+          accounts: true,
         },
       })
 
@@ -198,14 +182,156 @@ export class AuthService {
         exists: false,
         user: {
           email,
-          name,
-          picture,
-          socialId: decodedToken.uid,
           provider,
+          providerAccountId,
         },
       }
     } catch (error) {
-      throw new UnauthorizedException('Invalid ID token')
+      throw new UnauthorizedException('Invalid user data')
+    }
+  }
+
+  async register(registerDto: any) {
+    const { email, name, picture, provider, providerAccountId, ...userData } = registerDto
+
+    try {
+      // Generate unique username
+      let username = name.toLowerCase().replace(/\s+/g, "_")
+      let counter = 1
+
+      while (await this.prisma.user.findUnique({ where: { username } })) {
+        username = `${name.toLowerCase().replace(/\s+/g, "_")}_${counter}`
+        counter++
+      }
+
+      // Create new user with account
+      const user = await this.prisma.user.create({
+        data: {
+          email,
+          name,
+          username,
+          avatar: picture,
+          accounts: {
+            create: {
+              provider,
+              providerAccountId,
+              type: "oauth",
+            },
+          },
+          ...userData,
+        },
+        include: {
+          accounts: true,
+        },
+      })
+
+      // Generate JWT token
+      const accessToken = this.jwtService.sign({
+        sub: user.id,
+        email: user.email,
+      })
+
+      return {
+        user,
+        accessToken,
+      }
+    } catch (error) {
+      throw new UnauthorizedException('Failed to register user')
+    }
+  }
+
+  async handleNextAuthUser(data: {
+    email: string
+    name: string
+    picture?: string
+    provider: string
+    providerAccountId: string
+  }) {
+    try {
+      // Check if user exists by email or provider account
+      let user = await this.prisma.user.findFirst({
+        where: {
+          OR: [
+            { email: data.email },
+            {
+              accounts: {
+                some: {
+                  provider: data.provider,
+                  providerAccountId: data.providerAccountId,
+                },
+              },
+            },
+          ],
+        },
+        include: {
+          accounts: true,
+        },
+      })
+
+      if (!user) {
+        // Generate unique username
+        let username = data.name.toLowerCase().replace(/\s+/g, "_")
+        let counter = 1
+
+        while (await this.prisma.user.findUnique({ where: { username } })) {
+          username = `${data.name.toLowerCase().replace(/\s+/g, "_")}_${counter}`
+          counter++
+        }
+
+        // Create new user with account
+        user = await this.prisma.user.create({
+          data: {
+            email: data.email,
+            name: data.name,
+            username,
+            avatar: data.picture,
+            accounts: {
+              create: {
+                provider: data.provider,
+                providerAccountId: data.providerAccountId,
+                type: "oauth",
+              },
+            },
+          },
+          include: {
+            accounts: true,
+          },
+        })
+      } else {
+        // Update existing user's account if needed
+        const existingAccount = user.accounts.find(
+          (acc) => acc.provider === data.provider && acc.providerAccountId === data.providerAccountId
+        )
+
+        if (!existingAccount) {
+          await this.prisma.account.create({
+            data: {
+              userId: user.id,
+              provider: data.provider,
+              providerAccountId: data.providerAccountId,
+              type: "oauth",
+            },
+          })
+        }
+
+        // Update user info if needed
+        if (user.name !== data.name || user.avatar !== data.picture) {
+          user = await this.prisma.user.update({
+            where: { id: user.id },
+            data: {
+              name: data.name,
+              avatar: data.picture,
+            },
+            include: {
+              accounts: true,
+            },
+          })
+        }
+      }
+
+      return user
+    } catch (error) {
+      throw new UnauthorizedException('Failed to handle NextAuth user')
     }
   }
 }

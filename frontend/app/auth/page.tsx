@@ -1,25 +1,29 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { ArrowLeft, HelpCircle, Camera, MapPin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { useAuthStore } from "@/store/useAuthStore"
 import { useRouter } from "next/navigation"
+import { useSession, signIn } from "next-auth/react"
 
-const countryCodes = [
-  { code: "+91", country: "India", flag: "🇮🇳" },
-  { code: "+1", country: "USA", flag: "🇺🇸" },
-  { code: "+44", country: "UK", flag: "🇬🇧" },
-  { code: "+86", country: "China", flag: "🇨🇳" },
-  { code: "+81", country: "Japan", flag: "🇯🇵" },
+const preferences = [
+  { id: "education", label: "Education", icon: "📚" },
+  { id: "entertainment", label: "Entertainment", icon: "🎬" },
+  { id: "technology", label: "Technology", icon: "💻" },
+  { id: "business", label: "Business", icon: "💼" },
+  { id: "lifestyle", label: "Lifestyle", icon: "🌟" },
+  { id: "sports", label: "Sports", icon: "⚽" },
+  { id: "music", label: "Music", icon: "🎵" },
+  { id: "cooking", label: "Cooking", icon: "👨‍🍳" },
+  { id: "travel", label: "Travel", icon: "✈️" },
+  { id: "fitness", label: "Fitness", icon: "💪" },
 ]
 
 const languages = [
@@ -35,30 +39,11 @@ const languages = [
   { code: "pa", name: "Punjabi", flag: "🇮🇳" },
 ]
 
-const preferences = [
-  { id: "education", label: "Education", icon: "📚" },
-  { id: "entertainment", label: "Entertainment", icon: "🎬" },
-  { id: "technology", label: "Technology", icon: "💻" },
-  { id: "business", label: "Business", icon: "💼" },
-  { id: "lifestyle", label: "Lifestyle", icon: "🌟" },
-  { id: "sports", label: "Sports", icon: "⚽" },
-  { id: "music", label: "Music", icon: "🎵" },
-  { id: "cooking", label: "Cooking", icon: "👨‍🍳" },
-  { id: "travel", label: "Travel", icon: "✈️" },
-  { id: "fitness", label: "Fitness", icon: "💪" },
-]
-
 export default function AuthPage() {
-  const [step, setStep] = useState<"welcome" | "signup" | "login" | "otp" | "register">("welcome")
-  const [countryCode, setCountryCode] = useState("+91")
-  const [phoneNumber, setPhoneNumber] = useState("")
-  const [otp, setOtp] = useState("")
-  const [isNewUser, setIsNewUser] = useState(false)
+  const [step, setStep] = useState<"welcome" | "signup" | "register">("welcome")
   const [currentStep, setCurrentStep] = useState(1)
-  const [location, setLocation] = useState("")
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
-  const [needsRegistration, setNeedsRegistration] = useState(false)
 
   // Registration form data
   const [registrationData, setRegistrationData] = useState({
@@ -71,65 +56,25 @@ export default function AuthPage() {
     location: "",
   })
 
-  const { sendOTP, verifyOTP, loading: authLoading, error: authError, setIsLoggedIn } = useAuthStore()
+  const { handleSocialLogin } = useAuthStore()
   const router = useRouter()
+  const { data: session, status } = useSession()
 
-  const handleSendOTP = async () => {
-    try {
-      // Format phone number: remove any spaces, dashes, or parentheses
-      const formattedPhone = phoneNumber.replace(/[\s\-\(\)]/g, '')
-      const fullPhoneNumber = `${countryCode}${formattedPhone}`
-      console.log('Attempting to send OTP to:', fullPhoneNumber)
-      
-      await sendOTP(fullPhoneNumber)
-      setStep("otp")
-    } catch (error) {
-      console.error('Error in handleSendOTP:', error)
-    }
-  }
+  useEffect(() => {
+    if (status === "loading") return
 
-  const handleVerifyOTP = async () => {
-    await verifyOTP(otp)
-    if (isNewUser) {
-      setStep("register")
-      getCurrentLocation()
-    } else {
-      router.push("/")
-    }
-  }
-
-  const getCurrentLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          // In real app, use reverse geocoding to get city name
-          setLocation("Mumbai, India")
-          setRegistrationData((prev) => ({ ...prev, location: "Mumbai, India" }))
-        },
-        (error) => {
-          console.log("Location access denied")
-          setLocation("Location not available")
-        },
-      )
-    }
-  }
-
-  const handleSocialLogin = async (provider: 'google' | 'facebook') => {
-    try {
-      setLoading(true)
-      await useAuthStore.getState().handleSocialLogin(provider)
-      
-      // If needsRegistration is true, the user needs to complete their profile
-      if (needsRegistration) {
+    if (status === "authenticated") {
+      if (session.needsRegistration) {
         setStep("register")
+        setRegistrationData((prev) => ({
+          ...prev,
+          name: session.registrationData?.name || "",
+        }))
+      } else {
+        router.push("/")
       }
-    } catch (error) {
-      console.error('Error in handleSocialLogin:', error)
-      setError(error instanceof Error ? error.message : 'Failed to sign in with ' + provider)
-    } finally {
-      setLoading(false)
     }
-  }
+  }, [session, status, router])
 
   const handlePreferenceToggle = (preferenceId: string) => {
     setRegistrationData((prev) => ({
@@ -156,11 +101,32 @@ export default function AuthPage() {
     }
   }
 
-  const handleRegistrationComplete = () => {
-    console.log("Registration data:", registrationData)
-    // API call to register user
-    setIsLoggedIn(true)
-    router.push("/")
+  const handleRegistrationComplete = async () => {
+    try {
+      setLoading(true)
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/register`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          ...registrationData,
+          email: session?.user?.email,
+          provider: session?.registrationData?.provider,
+          providerAccountId: session?.registrationData?.providerAccountId,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to register user")
+      }
+
+      router.push("/")
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to register")
+    } finally {
+      setLoading(false)
+    }
   }
 
   const canProceedToNext = () => {
@@ -183,7 +149,7 @@ export default function AuthPage() {
   if (step === "welcome") {
     return (
       <div className="min-h-screen bg-red-500 flex flex-col items-center justify-center px-6">
-        <div className="w-32 h-32 mb-16 bg-white rounded-3xl flex items-center justify-center">
+        <div className="w-40 h-40 mb-16 bg-white rounded-3xl flex items-center justify-center">
           <span className="text-4xl font-bold text-red-500">STRMLY</span>
         </div>
 
@@ -205,7 +171,7 @@ export default function AuthPage() {
     )
   }
 
-  if (step === "signup" || step === "login") {
+  if (step === "signup") {
     return (
       <div className="min-h-screen bg-red-500 flex flex-col px-6 py-8">
         <div className="flex items-center justify-between mb-8">
@@ -230,16 +196,15 @@ export default function AuthPage() {
               </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-4 mt-52">
               <Button
-                onClick={() => handleSocialLogin("google")}
+                onClick={() => signIn("google", { callbackUrl: "/auth" })}
                 disabled={loading}
-                variant="outline"
-                className="w-full bg-white/10 text-white hover:bg-white/20 rounded-full py-4 text-lg font-medium"
+                className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-8 text-2xl font-medium flex items-center justify-center"
               >
                 {loading ? (
                   <div className="flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
+                    <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin mr-2" />
                     Loading...
                   </div>
                 ) : (
@@ -262,19 +227,19 @@ export default function AuthPage() {
                         d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
                       />
                     </svg>
-                    Google
+                    Continue with Google
                   </>
                 )}
               </Button>
+
               <Button
-                onClick={() => handleSocialLogin("facebook")}
+                onClick={() => signIn("apple", { callbackUrl: "/auth" })}
                 disabled={loading}
-                variant="outline"
-                className="w-full bg-white/10 text-white hover:bg-white/20 rounded-full py-4 text-lg font-medium"
+                className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-8 text-2xl font-medium flex items-center justify-center"
               >
                 {loading ? (
                   <div className="flex items-center justify-center">
-                    <div className="w-5 h-5 border-2 border-white/20 border-t-white rounded-full animate-spin mr-2" />
+                    <div className="w-5 h-5 border-2 border-black/20 border-t-black rounded-full animate-spin mr-2" />
                     Loading...
                   </div>
                 ) : (
@@ -282,56 +247,14 @@ export default function AuthPage() {
                     <svg className="w-5 h-5 mr-2" viewBox="0 0 24 24">
                       <path
                         fill="currentColor"
-                        d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
+                        d="M17.05 20.28c-.98.95-2.05.88-3.08.41-1.09-.47-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.41C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.78 1.18-.19 2.31-.89 3.51-.84 1.54.07 2.7.61 3.44 1.57-3.14 1.88-2.29 5.13.89 6.41-.65 1.29-1.51 2.58-2.92 4.05zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"
                       />
                     </svg>
-                    Facebook
+                    Continue with Apple
                   </>
                 )}
               </Button>
             </div>
-
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <span className="w-full border-t border-white/20" />
-              </div>
-              <div className="relative flex justify-center text-xs uppercase">
-                <span className="bg-red-500 px-2 text-white/70">or continue with phone</span>
-              </div>
-            </div>
-
-            <div className="flex space-x-2">
-              <Select value={countryCode} onValueChange={setCountryCode}>
-                <SelectTrigger className="w-24 bg-white/10 border-white/20 text-white rounded-full">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {countryCodes.map((country) => (
-                    <SelectItem key={country.code} value={country.code}>
-                      {country.flag} {country.code}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Input
-                placeholder="Phone Number"
-                value={phoneNumber}
-                onChange={(e) => setPhoneNumber(e.target.value)}
-                className="flex-1 bg-white/10 border-white/20 text-white placeholder:text-white/70 rounded-full py-4 text-lg"
-                type="tel"
-                pattern="[0-9]*"
-                inputMode="numeric"
-              />
-            </div>
-
-            <Button
-              onClick={handleSendOTP}
-              disabled={!phoneNumber || loading}
-              className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium"
-            >
-              {loading ? "Sending..." : "Send OTP"}
-            </Button>
           </div>
 
           <div className="mt-8 text-center">
@@ -339,54 +262,6 @@ export default function AuthPage() {
               by continuing you agree to our <span className="underline">terms & privacy</span> ↗
             </p>
           </div>
-        </div>
-
-        {/* Invisible reCAPTCHA container */}
-        <div id="recaptcha-container" className="hidden" />
-      </div>
-    )
-  }
-
-  if (step === "otp") {
-    return (
-      <div className="min-h-screen bg-red-500 flex flex-col px-6 py-8">
-        <div className="flex items-center justify-between mb-8">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setStep("signup")}
-            className="text-white hover:bg-white/10 p-2"
-          >
-            <ArrowLeft size={24} />
-          </Button>
-          <Button variant="ghost" size="sm" className="text-white hover:bg-white/10 p-2">
-            <HelpCircle size={24} />
-          </Button>
-        </div>
-
-        <div className="flex-1 flex flex-col justify-center">
-          <div className="space-y-4">
-            <Input
-              placeholder="Enter OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              className="bg-white/10 border-white/20 text-white placeholder:text-white/70 rounded-full py-4 text-lg"
-            />
-
-            <Button
-              onClick={handleVerifyOTP}
-              disabled={!otp || loading}
-              className="w-full bg-white text-black hover:bg-gray-100 rounded-full py-4 text-lg font-medium"
-            >
-              {loading ? "Verifying..." : "Verify OTP"}
-            </Button>
-          </div>
-
-          {error && (
-            <div className="mt-4 text-center">
-              <p className="text-white/90 text-sm">{error}</p>
-            </div>
-          )}
         </div>
       </div>
     )
@@ -434,7 +309,7 @@ export default function AuthPage() {
                         src={
                           registrationData.profilePhoto
                             ? URL.createObjectURL(registrationData.profilePhoto)
-                            : "/placeholder.svg"
+                            : session?.user?.image || "/placeholder.svg"
                         }
                       />
                       <AvatarFallback>
@@ -461,49 +336,53 @@ export default function AuthPage() {
                 </div>
 
                 <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Full Name *</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="name">Full Name</Label>
                     <Input
                       id="name"
+                      type="text"
                       value={registrationData.name}
-                      onChange={(e) => setRegistrationData((prev) => ({ ...prev, name: e.target.value }))}
-                      placeholder="Enter your full name"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setRegistrationData((prev) => ({ ...prev, name: e.target.value }))
+                      }
+                      placeholder="John Doe"
+                      required
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="username">Username *</Label>
+                  <div className="space-y-2">
+                    <Label htmlFor="username">Username</Label>
                     <Input
                       id="username"
+                      type="text"
                       value={registrationData.username}
-                      onChange={(e) => setRegistrationData((prev) => ({ ...prev, username: e.target.value }))}
-                      placeholder="@username"
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setRegistrationData((prev) => ({ ...prev, username: e.target.value }))
+                      }
+                      placeholder="johndoe"
+                      required
                     />
                   </div>
 
-                  <div>
-                    <Label htmlFor="gender">Gender *</Label>
-                    <Select
+                  <div className="space-y-2">
+                    <Label htmlFor="gender">Gender</Label>
+                    <Input
+                      id="gender"
+                      type="text"
                       value={registrationData.gender}
-                      onValueChange={(value) => setRegistrationData((prev) => ({ ...prev, gender: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select your gender" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="male">Male</SelectItem>
-                        <SelectItem value="female">Female</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                        <SelectItem value="prefer-not-to-say">Prefer not to say</SelectItem>
-                      </SelectContent>
-                    </Select>
+                      onChange={(e: React.ChangeEvent<HTMLInputElement>) =>
+                        setRegistrationData((prev) => ({ ...prev, gender: e.target.value }))
+                      }
+                      placeholder="Male/Female/Other"
+                      required
+                    />
                   </div>
 
                   <div>
                     <Label htmlFor="location">Location</Label>
                     <div className="flex items-center space-x-2">
                       <MapPin size={16} className="text-muted-foreground" />
-                      <span className="text-sm">{location || "Detecting location..."}</span>
+                      <span className="text-sm">{registrationData.location || "Detecting location..."}</span>
                     </div>
                   </div>
                 </div>
@@ -591,7 +470,7 @@ export default function AuthPage() {
                       src={
                         registrationData.profilePhoto
                           ? URL.createObjectURL(registrationData.profilePhoto)
-                          : "/placeholder.svg"
+                          : session?.user?.image || "/placeholder.svg"
                       }
                     />
                     <AvatarFallback>{registrationData.name[0]}</AvatarFallback>
@@ -633,42 +512,40 @@ export default function AuthPage() {
 
                 <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                   <MapPin size={14} />
-                  <span>{location}</span>
+                  <span>{registrationData.location}</span>
                 </div>
               </CardContent>
             </Card>
           )}
 
-          {/* Navigation Buttons */}
-          <div className="flex justify-between mt-6">
-            {currentStep < 4 && (
+          {/* Navigation buttons */}
+          <div className="mt-6 flex justify-between">
+            {currentStep > 1 && (
               <Button
                 variant="outline"
-                onClick={() => {
-                  if (currentStep === 1) {
-                    handleRegistrationComplete()
-                  } else {
-                    setCurrentStep(4) // Skip to review
-                  }
-                }}
+                onClick={() => setCurrentStep(currentStep - 1)}
+                className="w-24"
               >
-                Skip
+                Back
               </Button>
             )}
-
-            <Button
-              onClick={() => {
-                if (currentStep === 4) {
-                  handleRegistrationComplete()
-                } else {
-                  setCurrentStep(currentStep + 1)
-                }
-              }}
-              disabled={!canProceedToNext()}
-              className="ml-auto"
-            >
-              {currentStep === 4 ? "Complete Profile" : "Next"}
-            </Button>
+            {currentStep < 4 ? (
+              <Button
+                onClick={() => setCurrentStep(currentStep + 1)}
+                disabled={!canProceedToNext()}
+                className="w-24 ml-auto"
+              >
+                Next
+              </Button>
+            ) : (
+              <Button
+                onClick={handleRegistrationComplete}
+                disabled={!canProceedToNext() || loading}
+                className="w-24 ml-auto"
+              >
+                {loading ? "Creating..." : "Create"}
+              </Button>
+            )}
           </div>
         </div>
       </div>

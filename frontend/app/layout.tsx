@@ -4,6 +4,7 @@ import localFont from "next/font/local"
 import "./globals.css"
 import ClientLayout from "./ClientLayout"
 import { ThemeProvider } from "@/components/ThemeProvider"
+import Providers from "@/components/Providers"
 
 const geistSans = localFont({
   src: "./fonts/GeistVF.woff",
@@ -29,9 +30,11 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
-        <ThemeProvider defaultTheme="dark">
-          <ClientLayout>{children}</ClientLayout>
-        </ThemeProvider>
+        <Providers>
+          <ThemeProvider defaultTheme="dark">
+            <ClientLayout>{children}</ClientLayout>
+          </ThemeProvider>
+        </Providers>
       </body>
     </html>
   )
