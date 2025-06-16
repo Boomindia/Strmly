@@ -7,9 +7,9 @@ import type { SignupDto, LoginDto, VerifyOtpDto, CheckUserDto } from "./dto/auth
 @Injectable()
 export class AuthService {
   constructor(
-    private prisma: PrismaService,
-    private jwtService: JwtService,
-    private configService: ConfigService,
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly configService: ConfigService,
   ) {}
 
   async signup(signupDto: SignupDto) {
@@ -109,6 +109,8 @@ export class AuthService {
           avatar: user.avatar,
           bio: user.bio,
           isVerified: user.isVerified,
+          website: user.website,
+          location: user.location,
         },
       }
     } catch (error) {
@@ -116,26 +118,13 @@ export class AuthService {
     }
   }
 
-  async validateUser(userId: string) {
+  async validateUser(email: string) {
     const user = await this.prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        name: true,
-        username: true,
-        phoneNumber: true,
-        email: true,
-        avatar: true,
-        bio: true,
-        isVerified: true,
-        isPrivate: true,
+      where: { email },
+      include: {
+        accounts: true,
       },
     })
-
-    if (!user) {
-      throw new UnauthorizedException("User not found")
-    }
-
     return user
   }
 
@@ -187,7 +176,7 @@ export class AuthService {
         },
       }
     } catch (error) {
-      throw new UnauthorizedException('Invalid user data')
+      throw new UnauthorizedException("Invalid user data")
     }
   }
 
@@ -211,14 +200,19 @@ export class AuthService {
           name,
           username,
           avatar: picture,
+          bio: `Hello! I'm ${name.split(" ")[0]}. Welcome to my profile! 👋`,
           accounts: {
             create: {
               provider,
               providerAccountId,
               type: "oauth",
+              access_token: "",
+              refresh_token: "",
+              expires_at: 0,
+              token_type: "Bearer",
+              scope: "email profile",
             },
           },
-          ...userData,
         },
         include: {
           accounts: true,
@@ -236,102 +230,146 @@ export class AuthService {
         accessToken,
       }
     } catch (error) {
-      throw new UnauthorizedException('Failed to register user')
+      throw new UnauthorizedException("Failed to register user")
     }
   }
 
-  async handleNextAuthUser(data: {
+  async createUser(data: {
     email: string
     name: string
     picture?: string
     provider: string
     providerAccountId: string
+    firstName?: string
+    lastName?: string
+    locale?: string
+    verifiedEmail?: boolean
   }) {
     try {
-      // Check if user exists by email or provider account
-      let user = await this.prisma.user.findFirst({
-        where: {
-          OR: [
-            { email: data.email },
-            {
-              accounts: {
-                some: {
-                  provider: data.provider,
-                  providerAccountId: data.providerAccountId,
-                },
-              },
+      // Generate unique username from name
+      const baseName = data.firstName || data.name.split(" ")[0] || "user"
+      let username = baseName.toLowerCase().replace(/[^a-z0-9]/g, "_")
+      let counter = 1
+
+      while (await this.prisma.user.findUnique({ where: { username } })) {
+        username = `${baseName.toLowerCase().replace(/[^a-z0-9]/g, "_")}_${counter}`
+        counter++
+      }
+
+      // Create comprehensive bio based on available information
+      const firstName = data.firstName || data.name.split(" ")[0]
+      const bio = `Hello! I'm ${firstName}. Welcome to my profile! 👋`
+
+      // Create new user with comprehensive Google data
+      const user = await this.prisma.user.create({
+        data: {
+          email: data.email,
+          name: data.name,
+          username,
+          avatar: data.picture,
+          bio,
+          isVerified: data.verifiedEmail || false,
+          // Set location based on locale if available
+          location: data.locale ? this.getLocationFromLocale(data.locale) : undefined,
+          accounts: {
+            create: {
+              provider: data.provider,
+              providerAccountId: data.providerAccountId,
+              type: "oauth",
+              access_token: "",
+              refresh_token: "",
+              expires_at: 0,
+              token_type: "Bearer",
+              scope: "email profile",
             },
-          ],
+          },
         },
         include: {
           accounts: true,
         },
       })
 
-      if (!user) {
-        // Generate unique username
-        let username = data.name.toLowerCase().replace(/\s+/g, "_")
-        let counter = 1
-
-        while (await this.prisma.user.findUnique({ where: { username } })) {
-          username = `${data.name.toLowerCase().replace(/\s+/g, "_")}_${counter}`
-          counter++
-        }
-
-        // Create new user with account
-        user = await this.prisma.user.create({
-          data: {
-            email: data.email,
-            name: data.name,
-            username,
-            avatar: data.picture,
-            accounts: {
-              create: {
-                provider: data.provider,
-                providerAccountId: data.providerAccountId,
-                type: "oauth",
-              },
-            },
-          },
-          include: {
-            accounts: true,
-          },
-        })
-      } else {
-        // Update existing user's account if needed
-        const existingAccount = user.accounts.find(
-          (acc) => acc.provider === data.provider && acc.providerAccountId === data.providerAccountId
-        )
-
-        if (!existingAccount) {
-          await this.prisma.account.create({
-            data: {
-              userId: user.id,
-              provider: data.provider,
-              providerAccountId: data.providerAccountId,
-              type: "oauth",
-            },
-          })
-        }
-
-        // Update user info if needed
-        if (user.name !== data.name || user.avatar !== data.picture) {
-          user = await this.prisma.user.update({
-            where: { id: user.id },
-            data: {
-              name: data.name,
-              avatar: data.picture,
-            },
-            include: {
-              accounts: true,
-            },
-          })
-        }
-      }
-
       return user
     } catch (error) {
-      throw new UnauthorizedException('Failed to handle NextAuth user')
+      console.error("Error creating user:", error)
+      throw new UnauthorizedException("Failed to create user")
     }
+  }
+
+  async generateToken(user: any) {
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      username: user.username,
+    }
+    return this.jwtService.sign(payload)
+  }
+
+  async verifyToken(token: string) {
+    try {
+      const payload = this.jwtService.verify(token)
+      return payload
+    } catch (error) {
+      throw new UnauthorizedException("Invalid token")
+    }
+  }
+
+  async updateUser(
+    userId: string,
+    data: {
+      name?: string
+      avatar?: string
+      email?: string
+      bio?: string
+      website?: string
+      location?: string
+    },
+  ) {
+    try {
+      const user = await this.prisma.user.update({
+        where: { id: userId },
+        data: {
+          name: data.name,
+          avatar: data.avatar,
+          email: data.email,
+          bio: data.bio,
+          website: data.website,
+          location: data.location,
+          updatedAt: new Date(),
+        },
+        include: {
+          accounts: true,
+        },
+      })
+      return user
+    } catch (error) {
+      console.error("Error updating user:", error)
+      throw new UnauthorizedException("Failed to update user")
+    }
+  }
+
+  private getLocationFromLocale(locale: string): string | undefined {
+    const localeMap: { [key: string]: string } = {
+      "en-US": "United States",
+      "en-GB": "United Kingdom",
+      "en-CA": "Canada",
+      "en-AU": "Australia",
+      "en-IN": "India",
+      "es-ES": "Spain",
+      "es-MX": "Mexico",
+      "fr-FR": "France",
+      "de-DE": "Germany",
+      "it-IT": "Italy",
+      "pt-BR": "Brazil",
+      "ja-JP": "Japan",
+      "ko-KR": "South Korea",
+      "zh-CN": "China",
+      "zh-TW": "Taiwan",
+      "ru-RU": "Russia",
+      "ar-SA": "Saudi Arabia",
+      "hi-IN": "India",
+    }
+
+    return localeMap[locale] || undefined
   }
 }

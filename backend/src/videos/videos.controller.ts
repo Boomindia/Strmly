@@ -1,5 +1,5 @@
-import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, UseInterceptors, UploadedFiles } from "@nestjs/common"
-import { FilesInterceptor } from "@nestjs/platform-express"
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards, Request, UseInterceptors, UploadedFiles, UploadedFile } from "@nestjs/common"
+import { FilesInterceptor, FileInterceptor } from "@nestjs/platform-express"
 import { JwtAuthGuard } from "../auth/guards/jwt-auth.guard"
 import { VideosService } from "./videos.service"
 import { CreateVideoDto, UpdateVideoDto, AddCommentDto } from "./dto/video.dto"
@@ -11,9 +11,16 @@ export class VideosController {
 
   @UseGuards(JwtAuthGuard)
   @Post()
-  @UseInterceptors(FilesInterceptor("files", 2))
-  createVideo(@Request() req: RequestWithUser, @UploadedFiles() files: { video?: Express.Multer.File[]; thumbnail?: Express.Multer.File[] }) {
-    return this.videosService.createVideo(req.user.id, files)
+  @UseInterceptors(FileInterceptor("file"))
+  createVideo(@Request() req: RequestWithUser, @UploadedFile() file: Express.Multer.File) {
+    console.log('Received file:', file);
+    console.log('File details:', {
+      originalname: file?.originalname,
+      mimetype: file?.mimetype,
+      size: file?.size,
+      buffer: file?.buffer ? 'Buffer present' : 'No buffer'
+    });
+    return this.videosService.createVideo(req.user.id, file)
   }
 
   @Get(":id")
@@ -62,6 +69,16 @@ export class VideosController {
     @Body() body: AddCommentDto
   ) {
     return this.videosService.addComment(req.user.id, id, body.content, body.parentId)
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post(":id/comments/:commentId/like")
+  toggleCommentLike(
+    @Request() req: RequestWithUser,
+    @Param("id") id: string,
+    @Param("commentId") commentId: string
+  ) {
+    return this.videosService.toggleCommentLike(req.user.id, id, commentId)
   }
 
   @Get(":id/comments")

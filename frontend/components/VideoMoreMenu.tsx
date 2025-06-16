@@ -8,7 +8,7 @@ import { Separator } from "@/components/ui/separator"
 interface VideoMoreMenuProps {
   isOpen: boolean
   onClose: () => void
-  videoId: number | null
+  videoId: string | null
 }
 
 export default function VideoMoreMenu({ isOpen, onClose, videoId }: VideoMoreMenuProps) {
