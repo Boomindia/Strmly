@@ -9,6 +9,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import CommentsSection from "./CommentsSection"
 import VideoMoreMenu from "./VideoMoreMenu"
 import { useAuthStore } from "@/store/useAuthStore"
+import { api } from "@/lib/api"
 
 const mockVideos = [
   {
@@ -91,6 +92,7 @@ interface Video {
   type: "SHORT" | "LONG"
   status: "DRAFT" | "PROCESSING" | "PUBLISHED" | "FAILED" | "PRIVATE"
   user: {
+    id: string
     name: string
     username: string
     avatar: string
@@ -98,6 +100,7 @@ interface Video {
   likes: number
   comments: number
   shares: number
+  views: number
   saves: number
   progress?: number
   community?: string
@@ -127,6 +130,8 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
   const [showFullDescription, setShowFullDescription] = useState(false)
   const commentsRef = useRef<HTMLDivElement>(null)
   const shareOptionsRef = useRef<HTMLDivElement>(null)
+  const [followingMap, setFollowingMap] = useState<Record<string, boolean>>({})
+  const { user } = useAuthStore()
 
   useEffect(() => {
     const fetchVideos = async () => {
@@ -147,6 +152,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
           throw new Error("Failed to fetch videos")
         }
         const data = await response.json()
+        
         // Transform the data to match the Video interface
         const transformedVideos = data.map((video: any) => ({
           _id: video._id,
@@ -157,25 +163,41 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
           type: video.type,
           status: video.status || "PUBLISHED",
           user: {
-            name: video.userId || "Anonymous",
-            username: "@anonymous",
-            avatar: "/placeholder.svg"
+            id: video.userId,
+            name: video.user?.name || "Anonymous",
+            username: video.user?.username || "@anonymous",
+            avatar: video.user?.avatar || "/placeholder.svg"
           },
           likes: video.likesCount || 0,
           comments: video.commentsCount || 0,
           shares: video.sharesCount || 0,
+          views: video.viewsCount || 0,
           saves: 0,
           progress: 0,
-          isLiked: false
+          isLiked: video.isLiked || false
         }))
         setVideos(transformedVideos)
+
+        // Check following status for each user
+        const followingStatuses = await Promise.all(
+          transformedVideos.map(async (v: Video) => {
+            if (v.user.id === user?.id) return { id: v.user.id, isFollowing: false }
+            const isFollowing = await api.isFollowing(user?.id || "", v.user.id)
+            return { id: v.user.id, isFollowing }
+          })
+        )
+
+        setFollowingMap(prev => ({
+          ...prev,
+          ...Object.fromEntries(followingStatuses.map(s => [s.id, s.isFollowing]))
+        }))
       } catch (error) {
         console.error("Error fetching videos:", error)
       }
     }
 
     fetchVideos()
-  }, [token])
+  }, [token, user?.id])
 
   const filteredVideos = longVideoOnly 
     ? videos.filter(video => video.type === "LONG" && video.status === "PUBLISHED")
@@ -417,6 +439,18 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
     }
   }, [])
 
+  const handleFollow = async (targetUserId: string) => {
+    try {
+      const result = await api.followUser(targetUserId)
+      setFollowingMap(prev => ({
+        ...prev,
+        [targetUserId]: result.following
+      }))
+    } catch (error) {
+      console.error("Error following user:", error)
+    }
+  }
+
   return (
     <>
       <div className={`h-screen overflow-y-scroll snap-y snap-mandatory ${isFullscreen ? "fullscreen-video" : ""} pt-14`}>
@@ -630,13 +664,21 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
 
               {/* User Info */}
               <div className="flex items-center space-x-2 mb-2">
-                <span className="font-semibold">{video.user?.name}</span>
-                <Button
-                  size="sm"
-                  className="bg-transparent border border-white text-white hover:bg-white hover:text-black"
-                >
-                  Follow
-                </Button>
+                <span className="font-semibold">{video.user.name}</span>
+                {video.user.id && video.user.id !== user?.id && (
+                  <Button
+                    size="sm"
+                    variant={followingMap[video.user.id] ? "outline" : "default"}
+                    className={`${
+                      followingMap[video.user.id]
+                        ? "bg-transparent border border-white text-white hover:bg-white hover:text-black"
+                        : "bg-white text-black hover:bg-white/90"
+                    }`}
+                    onClick={() => handleFollow(video.user.id)}
+                  >
+                    {followingMap[video.user.id] ? "Following" : "Follow"}
+                  </Button>
+                )}
               </div>
 
               {/* Title and Description */}
