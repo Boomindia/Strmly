@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, ForbiddenException } from "@nestjs/common"
+import { Injectable, NotFoundException, ForbiddenException, Logger } from "@nestjs/common"
 import { InjectModel } from "@nestjs/mongoose"
 import { Model } from "mongoose"
 import { Video } from "../schemas/video.schema"
@@ -11,6 +11,8 @@ import type { CreateVideoDto, UpdateVideoDto } from "./dto/video.dto"
 
 @Injectable()
 export class VideosService {
+  private readonly logger = new Logger(VideosService.name)
+
   constructor(
     @InjectModel(Video.name) private videoModel: Model<VideoDocument>,
     private databaseService: DatabaseService,
@@ -19,58 +21,40 @@ export class VideosService {
     private cacheService: CacheService,
   ) {}
 
-  async createVideo(userId: string, files: { video?: Express.Multer.File[]; thumbnail?: Express.Multer.File[] }) {
-    const videoFile = files.video?.[0]
-    const thumbnailFile = files.thumbnail?.[0]
-
-    if (!videoFile) {
-      throw new Error("Video file is required")
-    }
-
-    let videoUrl: string | undefined
-    let thumbnailUrl: string | undefined
-
+  async createVideo(userId: string, file: Express.Multer.File): Promise<Video> {
+    let videoUrl: string | undefined;
     try {
-      // Upload video and thumbnail
-      videoUrl = await this.uploadService.uploadFile(videoFile, "videos", "video/mp4")
-      if (thumbnailFile) {
-        thumbnailUrl = await this.uploadService.uploadFile(thumbnailFile, "thumbnails", "image/jpeg")
-      }
-
-      // Create video document
+      // Upload to S3
+      videoUrl = await this.uploadService.uploadFile(file, "videos", "video/mp4");
+      
+      // Create video document with PUBLISHED status
       const video = await this.videoModel.create({
-        userId,
-        videoPath: videoFile.path,
-        thumbnail: thumbnailFile?.path,
-        thumbnailUrl,
-        videoUrl,
-        status: "PENDING",
-      })
+        title: file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
+        description: "",
+        type: "LONG",
+        status: "PUBLISHED",
+        videoUrl: videoUrl,
+        userId: userId,
+        visibility: "PUBLIC",
+        duration: 0, // We'll update this later if needed
+        thumbnailUrl: "", // We'll update this later if needed
+        tags: [],
+        category: "OTHER",
+        language: "en",
+        monetization: {
+          isMonetized: false,
+          type: "NONE"
+        }
+      });
 
-      // Add to processing queue
-      await this.videoProcessingService.addVideoToProcessingQueue({
-        videoId: (video as any)._id.toString(),
-        inputUrl: videoFile.path,
-        userId,
-        originalFilename: videoFile.originalname,
-      })
-
-      // Get video with user data
-      const videoWithUserData = await this.databaseService.getVideoWithUserData((video as any)._id.toString())
-
-      // Cache video data
-      await this.cacheService.cacheVideoData((video as any)._id.toString(), videoWithUserData)
-
-      return videoWithUserData
+      return video;
     } catch (error) {
-      // Clean up uploaded files if creation fails
-      if (videoUrl) {
-        await this.uploadService.deleteFileFromS3(videoUrl)
+      this.logger.error(`Error in createVideo: ${error}`);
+      // Clean up uploaded file if document creation fails
+      if (error.message.includes("Failed to create video document") && videoUrl) {
+        await this.uploadService.deleteFileFromS3(videoUrl);
       }
-      if (thumbnailUrl) {
-        await this.uploadService.deleteFileFromS3(thumbnailUrl)
-      }
-      throw error
+      throw error;
     }
   }
 
@@ -128,11 +112,6 @@ export class VideosService {
       await this.uploadService.deleteFileFromS3(video.videoUrl)
     }
 
-    // Delete thumbnail
-    if (video.thumbnailUrl) {
-      await this.uploadService.deleteFileFromS3(video.thumbnailUrl)
-    }
-
     // Delete video document
     await this.videoModel.deleteOne({ _id: videoId })
 
@@ -148,6 +127,10 @@ export class VideosService {
 
   async addComment(userId: string, videoId: string, content: string, parentId?: string) {
     return this.databaseService.createComment(userId, videoId, content, parentId)
+  }
+
+  async toggleCommentLike(userId: string, videoId: string, commentId: string) {
+    return this.databaseService.toggleCommentLike(userId, videoId, commentId)
   }
 
   async getComments(videoId: string, page = 1, limit = 20) {

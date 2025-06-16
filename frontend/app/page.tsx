@@ -2,7 +2,6 @@
 
 import { useAuthStore } from "@/store/useAuthStore"
 import VideoFeed from "@/components/VideoFeed"
-import TopHeader from "@/components/TopHeader"
 
 export default function Home() {
   const isLoggedIn = useAuthStore((state) => state.isLoggedIn)
@@ -13,7 +12,7 @@ export default function Home() {
 
   return (
     <div className="h-screen">
-        <TopHeader />
+        
         <VideoFeed longVideoOnly={true} />
       </div>
 

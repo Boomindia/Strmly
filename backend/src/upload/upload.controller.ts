@@ -61,13 +61,13 @@ export class UploadController {
     return this.uploadService.uploadImage(file, "thumbnails")
   }
 
-  @Post("presigned-url")
+  @Get("presigned-url")
   async generatePresignedUrl(
-    @Body() generatePresignedUrlDto: GeneratePresignedUrlDto,
+    @Query() query: GeneratePresignedUrlDto,
     @Request() req: RequestWithUser
   ) {
     const userId = req.user.id
-    const { fileType, fileName, contentType } = generatePresignedUrlDto
+    const { fileType, fileName, contentType, expiresIn } = query
 
     let folder = ""
     switch (fileType) {
@@ -88,13 +88,13 @@ export class UploadController {
     }
 
     const key = this.uploadService.generateVideoKey(userId, fileName)
-    const presignedUrl = await this.uploadService.generatePresignedUrl(key, contentType)
+    const presignedUrl = await this.uploadService.generatePresignedUrl(key, contentType, expiresIn)
 
     return {
       success: true,
       presignedUrl,
       key,
-      expiresIn: 3600, // 1 hour
+      expiresIn: expiresIn || 3600, // Default to 1 hour if not specified
     }
   }
 

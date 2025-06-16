@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import Image from "next/image"
+import { useAuthStore } from "@/store/useAuthStore"
 
 const videoGenres = [
   "Education",
@@ -53,6 +54,7 @@ export default function UploadPage() {
   const [currentStep, setCurrentStep] = useState(1)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [selectedThumbnail, setSelectedThumbnail] = useState<File | null>(null)
+  const { token } = useAuthStore()
 
   const [formData, setFormData] = useState({
     // Basic Info
@@ -119,14 +121,66 @@ export default function UploadPage() {
     )
   }
 
-  const handleUpload = () => {
-    console.log("Uploading:", {
-      file: selectedFile,
-      thumbnail: selectedThumbnail,
-      type: uploadType,
-      ...formData,
-    })
-    alert("Upload started! (This is a demo)")
+  const handleUpload = async () => {
+    if (!selectedFile) {
+      alert("Please select a video file")
+      return
+    }
+
+    if (!formData.title || !formData.description) {
+      alert("Please fill in all required fields")
+      return
+    }
+
+    if (!token) {
+      alert("Please log in to upload videos")
+      return
+    }
+
+    try {
+      // Create form data
+      const uploadData = new FormData()
+      uploadData.append("file", selectedFile)
+      uploadData.append("title", formData.title)
+      uploadData.append("description", formData.description)
+      uploadData.append("type", uploadType.toUpperCase())
+      uploadData.append("visibility", formData.visibility.toUpperCase())
+      uploadData.append("genre", formData.genre)
+      uploadData.append("ageRestriction", formData.ageRestriction)
+      uploadData.append("orientation", formData.orientation)
+      uploadData.append("videoType", formData.videoType)
+      if (formData.tags.length > 0) {
+        uploadData.append("tags", JSON.stringify(formData.tags))
+      }
+
+      // Upload video
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos`, {
+        method: "POST",
+        body: uploadData,
+        credentials: "include",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.message || "Failed to upload video")
+      }
+
+      const data = await response.json()
+      alert("Video uploaded successfully!")
+      
+      // Redirect to the appropriate page based on video type
+      if (uploadType === "long") {
+        window.location.href = "/long"
+      } else {
+        window.location.href = "/shorts"
+      }
+    } catch (error: any) {
+      console.error("Upload error:", error)
+      alert(error?.message || "Failed to upload video. Please try again.")
+    }
   }
 
   const canProceedToNext = () => {

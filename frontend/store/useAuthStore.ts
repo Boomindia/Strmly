@@ -1,73 +1,56 @@
 import { create } from 'zustand'
-import { signIn, signOut, useSession } from 'next-auth/react'
+import { persist } from 'zustand/middleware'
 
 type User = {
   id: string
   name: string
-  username: string
-  email?: string
+  email: string
+  image?: string
   avatar?: string
+  provider?: string
+  providerAccountId?: string
+  username?: string
   bio?: string
-  isVerified: boolean
+  isVerified?: boolean
+  location?: string
+  website?: string
+  createdAt?: string
+  updatedAt?: string
+  joinedDate?: string
 }
 
 type AuthStore = {
-  isLoggedIn: boolean
   user: User | null
-  loading: boolean
-  error: string | null
-  setIsLoggedIn: (loggedIn: boolean) => void
-  setUser: (user: User | null) => void
-  setLoading: (loading: boolean) => void
-  setError: (error: string | null) => void
-  handleSocialLogin: (provider: 'google' | 'apple') => Promise<void>
+  token: string | null
+  isLoggedIn: boolean
+  login: (token: string) => Promise<void>
   logout: () => void
+  setUser: (user: User) => void
 }
 
-export const useAuthStore = create<AuthStore>((set) => ({
-  isLoggedIn: false,
-  user: null,
-  loading: false,
-  error: null,
-  setIsLoggedIn: (loggedIn) => set({ isLoggedIn: loggedIn }),
-  setUser: (user) => set({ user }),
-  setLoading: (loading) => set({ loading }),
-  setError: (error) => set({ error }),
-  
-  handleSocialLogin: async (provider) => {
-    try {
-      set({ loading: true, error: null })
-      
-      const result = await signIn(provider, {
-        redirect: false,
-      })
-
-      if (result?.error) {
-        throw new Error(result.error)
-      }
-
-      // The session will be updated automatically by NextAuth
-      set({ loading: false })
-    } catch (error) {
-      console.error('Social login error:', error)
-      set({ 
-        loading: false, 
-        error: error instanceof Error ? error.message : 'Failed to sign in with ' + provider 
-      })
+export const useAuthStore = create<AuthStore>()(
+  persist(
+    (set) => ({
+      user: null,
+      token: null,
+      isLoggedIn: false,
+      login: async (token: string) => {
+        set({ token, isLoggedIn: true })
+      },
+      logout: () => {
+        set({ user: null, token: null, isLoggedIn: false })
+      },
+      setUser: (user: User) => {
+        set({ user, isLoggedIn: true })
+      },
+    }),
+    {
+      name: 'auth-storage',
+      partialize: (state) => ({
+        token: state.token,
+        user: state.user,
+        isLoggedIn: state.isLoggedIn,
+      }),
     }
-  },
-  
-  logout: async () => {
-    try {
-      await signOut()
-      set({
-        isLoggedIn: false,
-        user: null,
-        error: null,
-      })
-    } catch (error) {
-      console.error('Logout error:', error)
-      set({ error: 'Failed to logout' })
-    }
-  },
-}))
+  )
+)

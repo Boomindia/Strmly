@@ -8,15 +8,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Switch } from "@/components/ui/switch"
 import Link from "next/link"
 import { useTheme } from "@/components/ThemeProvider"
-import { signOut } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { useAuthStore } from "@/store/useAuthStore"
 
 export default function Sidebar() {
   const { theme, setTheme } = useTheme()
   const router = useRouter()
+  const { logout } = useAuthStore()
 
   const handleLogout = async () => {
-    await signOut({ redirect: false })
+    logout()
     router.push("/auth")
   }
 
@@ -36,7 +37,7 @@ export default function Sidebar() {
       {/* Navigation Items */}
       <div className="flex-1 space-y-2">
         <SidebarItem icon={<Home size={22} />} label="Home" href="/" />
-        <SidebarItem icon={<Video size={22} />} label="Short Videos" href="/shorts" />
+        {/* <SidebarItem icon={<Video size={22} />} label="Short Videos" href="/shorts" /> */}
         <SidebarItem icon={<Film size={22} />} label="Long Videos" href="/long" />
         <SidebarItem icon={<Search size={22} />} label="Search" href="/search" />
         <SidebarItem icon={<Upload size={22} />} label="Upload" href="/upload" />

@@ -14,6 +14,7 @@ import {
   Edit,
   History,
   List,
+  LogOut,
 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -21,7 +22,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card, CardContent } from "@/components/ui/card"
 import Image from "next/image"
 import Link from "next/link"
-import { useSession } from "next-auth/react"
+import { useAuthStore } from "@/store/useAuthStore"
 import { useRouter } from "next/navigation"
 
 const mockPosts = [
@@ -35,228 +36,228 @@ const mockPosts = [
 
 export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("posts")
-  const { data: session, status } = useSession()
+  const { user, isLoggedIn, token, logout } = useAuthStore()
   const router = useRouter()
 
-  useEffect(() => {
-    if (status === "unauthenticated") {
-      router.push("/auth")
-    }
-  }, [status, router])
-
-  if (status === "loading") {
-    return <div>Loading...</div>
+  const handleLogout = async () => {
+    logout()
+    router.push("/auth")
   }
 
-  if (!session?.user) {
-    return null
+  useEffect(() => {
+    if (!isLoggedIn) {
+      router.push("/auth")
+      return
+    }
+
+    // Fetch user data if we have a token
+    if (token) {
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/me`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch user data")
+          return res.json()
+        })
+        .then((userData) => {
+          useAuthStore.getState().setUser({
+            id: userData.id,
+            name: userData.name,
+            email: userData.email,
+            image: userData.avatar,
+            avatar: userData.avatar,
+            username: userData.username,
+            bio: userData.bio,
+            isVerified: userData.isVerified,
+          })
+        })
+        .catch((err) => {
+          console.error("Error fetching user data:", err)
+        })
+    }
+  }, [isLoggedIn, router, token])
+
+  if (!user) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
+      </div>
+    )
   }
 
   const userData = {
-    name: session.user.name || "User",
-    email: session.user.email || "",
-    image: session.user.image || "/placeholder.svg?height=120&width=120",
-    username: session.user.email?.split("@")[0] || "user",
-    bio: "Welcome to my profile! 👋",
-    location: "Not specified",
-    website: "",
+    name: user.name || "User",
+    email: user.email || "",
+    image: user.avatar || user.image || "https://api.dicebear.com/7.x/avataaars/svg?seed=default",
+    username: user.username || user.email?.split("@")[0] || "user",
+    bio: user.bio || "Welcome to my profile! 👋",
+    location: user.location || "Not specified",
+    website: user.website || "",
     joinedDate: new Date().toLocaleDateString("en-US", { month: "long", year: "numeric" }),
-    coverImage: "/placeholder.svg?height=200&width=800",
+    coverImage: "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?w=800&h=200&fit=crop",
     followers: 0,
     following: 0,
     posts: 0,
-    isVerified: false,
+    isVerified: user.isVerified || false,
   }
 
   return (
-    <div className="pb-20 md:pb-4">
+    <div className="min-h-screen bg-background">
       {/* Cover Image */}
-      <div className="relative h-48 md:h-64 bg-gradient-to-r from-primary/20 to-primary/40">
-        <Image src={userData.coverImage} alt="Cover" fill className="object-cover" />
-        <div className="absolute top-4 right-4">
-          <Link href="/profile/edit">
-            <Button variant="secondary" size="sm">
-              <Edit size={16} className="mr-2" />
-              Edit Profile
-            </Button>
-          </Link>
+      <div className="h-48 bg-muted relative">
+        <img
+          src={userData.coverImage}
+          alt="Cover"
+          className="w-full h-full object-cover"
+        />
+        {/* Add Sign Out button for mobile */}
+        <div className="absolute top-4 right-4 md:hidden">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="bg-[#f62000] hover:bg-[#f62000]/90 rounded-full p-2"
+          >
+            <LogOut size={20} className="text-white" />
+          </Button>
+        </div>
+        {/* Add Sign Out button for desktop */}
+        <div className="absolute top-4 right-4 hidden md:block">
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={handleLogout}
+            className="bg-[#f62000] hover:bg-[#f62000]/90 rounded-full p-2"
+          >
+            <LogOut size={20} className="text-white" />
+          </Button>
         </div>
       </div>
 
       {/* Profile Info */}
-      <div className="px-4 -mt-16 relative z-10">
-        <div className="flex flex-col md:flex-row md:items-end md:space-x-4">
-          <Avatar className="w-32 h-32 border-4 border-background mb-4 md:mb-0">
-            <AvatarImage src={userData.image} />
-            <AvatarFallback className="text-2xl">{userData.name[0]}</AvatarFallback>
-          </Avatar>
-
+      <div className="max-w-4xl mx-auto px-4 -mt-16 relative">
+        <div className="flex flex-col md:flex-row items-start md:items-end space-y-4 md:space-y-0 md:space-x-4">
+          <div className="relative">
+            <Avatar className="w-32 h-32 border-4 border-background">
+              <AvatarImage src={userData.image} alt={userData.name} />
+              <AvatarFallback>{userData.name[0]}</AvatarFallback>
+            </Avatar>
+          </div>
           <div className="flex-1">
-            <div className="flex items-center space-x-2 mb-2">
-              <h1 className="text-2xl font-bold">{userData.name}</h1>
-              {userData.isVerified && (
-                <div className="w-6 h-6 bg-primary rounded-full flex items-center justify-center">
-                  <span className="text-primary-foreground text-xs">✓</span>
-                </div>
-              )}
-            </div>
-            <p className="text-muted-foreground mb-2">@{userData.username}</p>
-            <p className="mb-3">{userData.bio}</p>
-
-            <div className="flex flex-wrap gap-4 text-sm text-muted-foreground mb-4">
-              {userData.location !== "Not specified" && (
-                <div className="flex items-center">
-                  <MapPin size={14} className="mr-1" />
-                  {userData.location}
-                </div>
-              )}
-              {userData.website && (
-                <div className="flex items-center">
-                  <LinkIcon size={14} className="mr-1" />
-                  {userData.website}
-                </div>
-              )}
-              <div className="flex items-center">
-                <Calendar size={14} className="mr-1" />
-                Joined {userData.joinedDate}
+            <div className="flex flex-col md:flex-row md:items-center justify-between">
+              <div>
+                <h1 className="text-2xl font-bold">{userData.name}</h1>
+                <p className="text-muted-foreground">@{userData.username}</p>
+                {userData.isVerified && (
+                  <span className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    Verified
+                  </span>
+                )}
               </div>
-            </div>
-
-            <div className="flex space-x-6 mb-4">
-              <div className="text-center">
-                <p className="font-bold text-lg">{userData.posts}</p>
-                <p className="text-sm text-muted-foreground">Posts</p>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-lg">{userData.followers.toLocaleString()}</p>
-                <p className="text-sm text-muted-foreground">Followers</p>
-              </div>
-              <div className="text-center">
-                <p className="font-bold text-lg">{userData.following}</p>
-                <p className="text-sm text-muted-foreground">Following</p>
+              <div className="flex gap-2 mt-4 md:mt-0">
+                <button className="px-4 py-2 bg-primary text-primary-foreground rounded-full" onClick={()=>{router.push("/profile/edit")}}>
+                  Edit Profile
+                </button>
               </div>
             </div>
           </div>
         </div>
-      </div>
 
-      {/* Quick Actions */}
-      <div className="px-4 mt-6 mb-6">
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-          <Link href="/profile/community">
-            <Card className="cursor-pointer hover:bg-accent transition-colors">
-              <CardContent className="p-4 text-center">
-                <Users size={24} className="mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium">My Community</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/profile/dashboard">
-            <Card className="cursor-pointer hover:bg-accent transition-colors">
-              <CardContent className="p-4 text-center">
-                <BarChart3 size={24} className="mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium">Dashboard</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/profile/history">
-            <Card className="cursor-pointer hover:bg-accent transition-colors">
-              <CardContent className="p-4 text-center">
-                <History size={24} className="mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium">History</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/profile/playlist">
-            <Card className="cursor-pointer hover:bg-accent transition-colors">
-              <CardContent className="p-4 text-center">
-                <List size={24} className="mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium">Playlist</p>
-              </CardContent>
-            </Card>
-          </Link>
-
-          <Link href="/profile/settings">
-            <Card className="cursor-pointer hover:bg-accent transition-colors">
-              <CardContent className="p-4 text-center">
-                <Settings size={24} className="mx-auto mb-2 text-primary" />
-                <p className="text-sm font-medium">Settings</p>
-              </CardContent>
-            </Card>
-          </Link>
+        {/* Bio */}
+        <div className="mt-6">
+          <p className="text-muted-foreground">{userData.bio}</p>
+          <div className="mt-2 flex flex-wrap gap-4 text-muted-foreground">
+            {userData.location && (
+              <span className="flex items-center">
+                <MapPin className="w-4 h-4 mr-1" />
+                {userData.location}
+              </span>
+            )}
+            {userData.website && (
+              <a href={userData.website} target="_blank" rel="noopener noreferrer" className="text-primary flex items-center">
+                <LinkIcon className="w-4 h-4 mr-1" />
+                {userData.website}
+              </a>
+            )}
+            <span className="flex items-center">
+              <Calendar className="w-4 h-4 mr-1" />
+              Joined {userData.joinedDate}
+            </span>
+          </div>
         </div>
-      </div>
 
-      {/* Content Tabs */}
-      <div className="px-4">
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-3">
-            <TabsTrigger value="posts" className="flex items-center">
-              <Grid size={16} className="mr-2" />
+        {/* Stats */}
+        <div className="mt-6 flex space-x-6">
+          <div>
+            <span className="font-bold">{userData.followers}</span>{" "}
+            <span className="text-muted-foreground">Followers</span>
+          </div>
+          <div>
+            <span className="font-bold">{userData.following}</span>{" "}
+            <span className="text-muted-foreground">Following</span>
+          </div>
+          <div>
+            <span className="font-bold">{userData.posts}</span>{" "}
+            <span className="text-muted-foreground">Posts</span>
+          </div>
+        </div>
+
+        {/* Tabs */}
+        <div className="mt-8 border-b">
+          <div className="flex space-x-8">
+            <button
+              className={`pb-4 ${
+                activeTab === "posts"
+                  ? "border-b-2 border-primary font-medium"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => setActiveTab("posts")}
+            >
               Posts
-            </TabsTrigger>
-            <TabsTrigger value="videos" className="flex items-center">
-              <Video size={16} className="mr-2" />
-              Videos
-            </TabsTrigger>
-            <TabsTrigger value="saved" className="flex items-center">
-              <Bookmark size={16} className="mr-2" />
+            </button>
+            <button
+              className={`pb-4 ${
+                activeTab === "likes"
+                  ? "border-b-2 border-primary font-medium"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => setActiveTab("likes")}
+            >
+              Likes
+            </button>
+            <button
+              className={`pb-4 ${
+                activeTab === "saved"
+                  ? "border-b-2 border-primary font-medium"
+                  : "text-muted-foreground"
+              }`}
+              onClick={() => setActiveTab("saved")}
+            >
               Saved
-            </TabsTrigger>
-          </TabsList>
+            </button>
+          </div>
+        </div>
 
-          <TabsContent value="posts" className="mt-6">
-            <div className="grid grid-cols-3 gap-1">
-              {mockPosts.map((post) => (
-                <div key={post.id} className="aspect-square relative group cursor-pointer">
-                  <Image
-                    src={post.image}
-                    alt={`Post ${post.id}`}
-                    fill
-                    className="object-cover rounded-sm"
-                  />
-                  {post.type === "video" && (
-                    <div className="absolute top-2 right-2">
-                      <Video size={16} className="text-white" />
-                    </div>
-                  )}
-                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-sm" />
-                </div>
-              ))}
+        {/* Content */}
+        <div className="mt-8">
+          {activeTab === "posts" && (
+            <div className="text-center text-muted-foreground py-8">
+              No posts yet
             </div>
-          </TabsContent>
-
-          <TabsContent value="videos" className="mt-6">
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-              {mockPosts
-                .filter((post) => post.type === "video")
-                .map((post) => (
-                  <div key={post.id} className="aspect-[9/16] relative group cursor-pointer">
-                    <Image
-                      src={post.image}
-                      alt={`Video ${post.id}`}
-                      fill
-                      className="object-cover rounded-lg"
-                    />
-                    <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity rounded-lg flex items-center justify-center">
-                      <Button size="lg" className="rounded-full">
-                        <Video size={24} />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
+          )}
+          {activeTab === "likes" && (
+            <div className="text-center text-muted-foreground py-8">
+              No liked posts yet
             </div>
-          </TabsContent>
-
-          <TabsContent value="saved" className="mt-6">
-            <div className="text-center py-8">
-              <p className="text-muted-foreground">No saved items yet</p>
+          )}
+          {activeTab === "saved" && (
+            <div className="text-center text-muted-foreground py-8">
+              No saved posts yet
             </div>
-          </TabsContent>
-        </Tabs>
+          )}
+        </div>
       </div>
     </div>
   )

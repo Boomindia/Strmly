@@ -1,9 +1,9 @@
 "use client"
 
 import type React from "react"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter, usePathname } from "next/navigation"
-import { useSession } from "next-auth/react"
+import { useAuthStore } from "@/store/useAuthStore"
 import Sidebar from "@/components/Sidebar"
 import MobileBottomNav from "@/components/MobileBottomNav"
 
@@ -12,29 +12,39 @@ export default function ClientLayout({
 }: {
   children: React.ReactNode
 }) {
-  const { data: session, status } = useSession()
+  const { isLoggedIn } = useAuthStore()
   const router = useRouter()
   const pathname = usePathname()
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    if (status === "loading") return
+    // Set loading to false after the first render
+    setIsLoading(false)
+  }, [])
 
-    if (session && pathname === "/auth") {
+  useEffect(() => {
+    if (isLoading) return // Don't redirect while loading
+
+    if (isLoggedIn && pathname === "/auth") {
       router.push("/")
-    } else if (!session && pathname !== "/auth") {
+    } else if (!isLoggedIn && pathname !== "/auth" && pathname !== "/auth/callback") {
       router.push("/auth")
     }
-  }, [session, status, pathname, router])
+  }, [isLoggedIn, pathname, router, isLoading])
+
+  if (isLoading) {
+    return null // Or a loading spinner if you prefer
+  }
 
   return (
     <div className="min-h-screen bg-background">
-      {session && (
+      {isLoggedIn && (
         <>
           <Sidebar />
           <MobileBottomNav />
         </>
       )}
-      <main className={session ? "md:ml-64 mobile-layout" : ""}>{children}</main>
+      <main className={isLoggedIn ? "md:ml-64 mobile-layout" : ""}>{children}</main>
     </div>
   )
 }

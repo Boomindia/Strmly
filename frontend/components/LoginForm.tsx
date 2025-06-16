@@ -10,12 +10,29 @@ import { useAuthStore } from "@/store/useAuthStore"
 
 export default function LoginForm() {
   const [phone, setPhone] = useState("")
-  const setIsLoggedIn = useAuthStore((state) => state.setIsLoggedIn)
+  const { login } = useAuthStore()
 
   const handleLogin = async () => {
-    // Assume login is successful
-    setIsLoggedIn(true)
-    localStorage.setItem("user", "dummy_token")
+    try {
+      // Call your login API here
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/login`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ phone }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Login failed")
+      }
+
+      const data = await response.json()
+      await login(data.token)
+    } catch (error) {
+      console.error("Login error:", error)
+      // Handle error appropriately
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {
