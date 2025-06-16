@@ -236,6 +236,32 @@ export class DatabaseService {
     return comment
   }
 
+  async toggleCommentLike(userId: string, videoId: string, commentId: string) {
+    const existingLike = await this.likeModel.findOne({
+      userId,
+      videoId,
+      targetType: "COMMENT",
+      targetId: commentId,
+    })
+
+    if (existingLike) {
+      // Unlike
+      await this.likeModel.deleteOne({ _id: existingLike._id })
+      await this.commentModel.updateOne({ _id: commentId }, { $inc: { likesCount: -1 } })
+      return { liked: false }
+    } else {
+      // Like
+      await this.likeModel.create({
+        userId,
+        videoId,
+        targetType: "COMMENT",
+        targetId: commentId,
+      })
+      await this.commentModel.updateOne({ _id: commentId }, { $inc: { likesCount: 1 } })
+      return { liked: true }
+    }
+  }
+
   async getVideoComments(videoId: string, page = 1, limit = 20) {
     const skip = (page - 1) * limit
 
@@ -261,9 +287,26 @@ export class DatabaseService {
 
     const userMap = new Map(users.map((u) => [u.id, u]))
 
+    // Get likes for current user
+    const commentIds = comments.map((c) => c._id.toString())
+    const likes = await this.likeModel.find({
+      videoId,
+      targetType: "COMMENT",
+      targetId: { $in: commentIds },
+    })
+
+    const likedCommentIds = new Set(likes.map((l) => l.targetId))
+
     return comments.map((comment) => ({
       ...comment,
-      user: userMap.get(comment.userId),
+      user: userMap.get(comment.userId) || {
+        id: comment.userId,
+        name: "Anonymous User",
+        username: "@anonymous",
+        avatar: "/placeholder.svg",
+        isVerified: false,
+      },
+      isLiked: likedCommentIds.has(comment._id.toString()),
     }))
   }
 

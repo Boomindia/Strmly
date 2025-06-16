@@ -1,10 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { X, Send, Smile, Heart, MoreVertical } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
+import { useAuthStore } from "@/store/useAuthStore"
 
 const mockComments = [
   {
@@ -57,22 +58,147 @@ const mockComments = [
   },
 ]
 
-const emojis = ["😀", "😂", "😍", "🔥", "💯", "👍", "❤️", "🎉", "🚀", "💪", "👏", "🙌"]
+const emojis = ["😀", "😂", "😍", "🔥", "💯", "👍", "❤️", "🎉", "🚀", "💪", "��", "🙌"]
+
+interface Comment {
+  _id: string
+  content: string
+  userId: string
+  videoId: string
+  parentId?: string
+  likesCount: number
+  repliesCount: number
+  isEdited: boolean
+  createdAt: string
+  user: {
+    id: string
+    name: string
+    username: string
+    avatar: string
+    isVerified: boolean
+  }
+  isLiked?: boolean
+}
 
 interface CommentsSectionProps {
   isOpen: boolean
   onClose: () => void
-  videoId: number | null
+  videoId: string | null
 }
 
 export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSectionProps) {
+  const [comments, setComments] = useState<Comment[]>([])
   const [comment, setComment] = useState("")
   const [showEmojiPicker, setShowEmojiPicker] = useState(false)
+  const [isLoading, setIsLoading] = useState(false)
+  const token = useAuthStore((state) => state.token)
+  const emojiPickerRef = useRef<HTMLDivElement>(null)
 
-  const handleSendComment = () => {
-    if (comment.trim()) {
-      console.log("Sending comment:", comment)
+  useEffect(() => {
+    if (isOpen && videoId) {
+      fetchComments()
+    }
+  }, [isOpen, videoId])
+
+  // Add click outside handler for emoji picker
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target as Node)) {
+        setShowEmojiPicker(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
+  const fetchComments = async () => {
+    if (!token || !videoId) return
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos/${videoId}/comments`, {
+        credentials: "include",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch comments")
+      }
+
+      const data = await response.json()
+      setComments(data)
+    } catch (error) {
+      console.error("Error fetching comments:", error)
+    }
+  }
+
+  const handleSendComment = async () => {
+    if (!token || !videoId || !comment.trim()) return
+
+    setIsLoading(true)
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos/${videoId}/comment`, {
+        method: 'POST',
+        credentials: "include",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ content: comment }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to post comment")
+      }
+
+      const newComment = await response.json()
+      setComments(prev => [newComment, ...prev])
       setComment("")
+    } catch (error) {
+      console.error("Error posting comment:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const handleLikeComment = async (commentId: string) => {
+    if (!token || !videoId) return
+
+    try {
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos/${videoId}/comments/${commentId}/like`, {
+        method: 'POST',
+        credentials: "include",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json"
+        },
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to like comment")
+      }
+
+      const data = await response.json()
+      
+      // Update the comment's like count and liked state
+      setComments(prevComments => 
+        prevComments.map(comment => 
+          comment._id === commentId 
+            ? { 
+                ...comment, 
+                likesCount: data.liked ? comment.likesCount + 1 : comment.likesCount - 1,
+                isLiked: data.liked 
+              }
+            : comment
+        )
+      )
+    } catch (error) {
+      console.error("Error liking comment:", error)
     }
   }
 
@@ -95,26 +221,33 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
 
       {/* Comments List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {mockComments.map((comment) => (
-          <div key={comment.id} className="space-y-2">
+        {comments.map((comment) => (
+          <div key={comment._id} className="space-y-2">
             {/* Main Comment */}
             <div className="flex space-x-3">
               <Avatar className="w-8 h-8">
-                <AvatarImage src={comment.user.avatar || "/placeholder.svg"} />
-                <AvatarFallback>{comment.user.name[0]}</AvatarFallback>
+                <AvatarImage src={comment.user?.avatar || "/placeholder.svg"} />
+                <AvatarFallback>{comment.user?.name?.[0] || "U"}</AvatarFallback>
               </Avatar>
 
               <div className="flex-1">
                 <div className="flex items-center space-x-2 mb-1">
-                  <span className="font-medium text-sm">{comment.user.name}</span>
-                  <span className="text-xs text-muted-foreground">{comment.timestamp}</span>
+                  <span className="font-medium text-sm">{comment.user?.name || "Anonymous User"}</span>
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(comment.createdAt).toLocaleDateString()}
+                  </span>
                 </div>
                 <p className="text-sm">{comment.content}</p>
 
                 <div className="flex items-center space-x-4 mt-2">
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
-                    <Heart size={12} className="mr-1" />
-                    {comment.likes}
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    className={`h-6 px-2 text-xs ${comment.isLiked ? 'text-red-500' : ''}`}
+                    onClick={() => handleLikeComment(comment._id)}
+                  >
+                    <Heart size={12} className={`mr-1 ${comment.isLiked ? 'fill-current' : ''}`} />
+                    {comment.likesCount}
                   </Button>
                   <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
                     Reply
@@ -125,34 +258,6 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
                 </div>
               </div>
             </div>
-
-            {/* Replies */}
-            {comment.replies.map((reply) => (
-              <div key={reply.id} className="flex space-x-3 ml-8">
-                <Avatar className="w-6 h-6">
-                  <AvatarImage src={reply.user.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{reply.user.name[0]}</AvatarFallback>
-                </Avatar>
-
-                <div className="flex-1">
-                  <div className="flex items-center space-x-2 mb-1">
-                    <span className="font-medium text-xs">{reply.user.name}</span>
-                    <span className="text-xs text-muted-foreground">{reply.timestamp}</span>
-                  </div>
-                  <p className="text-xs">{reply.content}</p>
-
-                  <div className="flex items-center space-x-4 mt-1">
-                    <Button variant="ghost" size="sm" className="h-5 px-2 text-xs">
-                      <Heart size={10} className="mr-1" />
-                      {reply.likes}
-                    </Button>
-                    <Button variant="ghost" size="sm" className="h-5 px-2 text-xs">
-                      Reply
-                    </Button>
-                  </div>
-                </div>
-              </div>
-            ))}
           </div>
         ))}
       </div>
@@ -161,8 +266,8 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
       <div className="p-4 border-t border-border">
         <div className="flex space-x-2">
           <Avatar className="w-8 h-8">
-            <AvatarImage src="/placeholder.svg?height=32&width=32" />
-            <AvatarFallback>You</AvatarFallback>
+            <AvatarImage src="/placeholder.svg" />
+            <AvatarFallback>U</AvatarFallback>
           </Avatar>
 
           <div className="flex-1 relative">
@@ -177,10 +282,11 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
                   handleSendComment()
                 }
               }}
+              disabled={isLoading}
             />
 
             <div className="absolute right-2 bottom-2 flex items-center space-x-1">
-              <div className="relative">
+              <div className="relative" ref={emojiPickerRef}>
                 <Button
                   variant="ghost"
                   size="sm"
@@ -207,7 +313,12 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
                 )}
               </div>
 
-              <Button size="sm" onClick={handleSendComment} disabled={!comment.trim()} className="h-6 w-6 p-0">
+              <Button 
+                size="sm" 
+                onClick={handleSendComment} 
+                disabled={!comment.trim() || isLoading} 
+                className="h-6 w-6 p-0"
+              >
                 <Send size={14} />
               </Button>
             </div>

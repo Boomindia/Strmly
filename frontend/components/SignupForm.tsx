@@ -11,12 +11,29 @@ import { useAuthStore } from "@/store/useAuthStore"
 export default function SignupForm() {
   const [phone, setPhone] = useState("")
   const [name, setName] = useState("")
-  const setIsLoggedIn = useAuthStore((state) => state.setIsLoggedIn)
+  const { login } = useAuthStore()
 
   const handleSignup = async () => {
-    // Assume signup is successful
-    setIsLoggedIn(true)
-    localStorage.setItem("user", "dummy_token")
+    try {
+      // Call your signup API here
+      const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/auth/signup`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ name, phone }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Signup failed")
+      }
+
+      const data = await response.json()
+      await login(data.token)
+    } catch (error) {
+      console.error("Signup error:", error)
+      // Handle error appropriately
+    }
   }
 
   const handleSubmit = (e: React.FormEvent) => {

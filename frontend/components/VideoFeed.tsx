@@ -1,25 +1,14 @@
 "use client"
 
-import { useState, useRef } from "react"
-import {
-  Heart,
-  MessageCircle,
-  Share,
-  Bookmark,
-  Play,
-  Pause,
-  Maximize,
-  Users,
-  MoreVertical,
-  ChevronDown,
-  Link as LinkIcon,
-} from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { Heart, MessageCircle, Share, Bookmark, Play, Pause, Maximize, Users, MoreVertical, ChevronDown, Link as LinkIcon} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import CommentsSection from "./CommentsSection"
 import VideoMoreMenu from "./VideoMoreMenu"
+import { useAuthStore } from "@/store/useAuthStore"
 
 const mockVideos = [
   {
@@ -93,20 +82,144 @@ const socialPlatforms = [
   { name: "Facebook", icon: "📘", color: "bg-blue-600" },
 ]
 
+interface Video {
+  _id: string
+  title: string
+  description: string
+  videoUrl: string
+  thumbnailUrl: string
+  type: "SHORT" | "LONG"
+  status: "DRAFT" | "PROCESSING" | "PUBLISHED" | "FAILED" | "PRIVATE"
+  user: {
+    name: string
+    username: string
+    avatar: string
+  }
+  likes: number
+  comments: number
+  shares: number
+  saves: number
+  progress?: number
+  community?: string
+  series?: string
+  currentEpisode?: number
+  episodes?: Array<{
+    id: number
+    title: string
+    duration: string
+  }>
+  tags?: string[]
+  isLiked: boolean
+}
+
 export default function VideoFeed({ showMixedContent = false, longVideoOnly = false }: VideoFeedProps) {
+  const [videos, setVideos] = useState<Video[]>([])
   const [currentVideo, setCurrentVideo] = useState(0)
-  const [isPlaying, setIsPlaying] = useState(true)
+  const [playingStates, setPlayingStates] = useState<{ [key: string]: boolean }>({})
   const [isFullscreen, setIsFullscreen] = useState(false)
   const [showComments, setShowComments] = useState(false)
   const [showMoreMenu, setShowMoreMenu] = useState(false)
-  const [selectedVideoId, setSelectedVideoId] = useState<number | null>(null)
+  const [selectedVideoId, setSelectedVideoId] = useState<string | null>(null)
   const videoRefs = useRef<(HTMLVideoElement | null)[]>([])
   const [showShareOptions, setShowShareOptions] = useState(false)
+  const token = useAuthStore((state) => state.token)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [showFullDescription, setShowFullDescription] = useState(false)
+  const commentsRef = useRef<HTMLDivElement>(null)
+  const shareOptionsRef = useRef<HTMLDivElement>(null)
 
-  const filteredVideos = longVideoOnly ? mockVideos : mockVideos
+  useEffect(() => {
+    const fetchVideos = async () => {
+      try {
+        if (!token) {
+          console.error("No authentication token found")
+          return
+        }
 
-  const handleVideoAction = (action: string, videoId: number) => {
-    if (action === "comment") {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos`, {
+          credentials: "include",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+        })
+        if (!response.ok) {
+          throw new Error("Failed to fetch videos")
+        }
+        const data = await response.json()
+        // Transform the data to match the Video interface
+        const transformedVideos = data.map((video: any) => ({
+          _id: video._id,
+          title: video.title,
+          description: video.description || "",
+          videoUrl: video.videoUrl,
+          thumbnailUrl: video.thumbnailUrl || "",
+          type: video.type,
+          status: video.status || "PUBLISHED",
+          user: {
+            name: video.userId || "Anonymous",
+            username: "@anonymous",
+            avatar: "/placeholder.svg"
+          },
+          likes: video.likesCount || 0,
+          comments: video.commentsCount || 0,
+          shares: video.sharesCount || 0,
+          saves: 0,
+          progress: 0,
+          isLiked: false
+        }))
+        setVideos(transformedVideos)
+      } catch (error) {
+        console.error("Error fetching videos:", error)
+      }
+    }
+
+    fetchVideos()
+  }, [token])
+
+  const filteredVideos = longVideoOnly 
+    ? videos.filter(video => video.type === "LONG" && video.status === "PUBLISHED")
+    : videos.filter(video => video.status === "PUBLISHED")
+
+  const handleVideoAction = async (action: string, videoId: string) => {
+    if (!token) {
+      console.error("No authentication token found")
+      return
+    }
+
+    if (action === "like") {
+      try {
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/videos/${videoId}/like`, {
+          method: 'POST',
+          credentials: "include",
+          headers: {
+            "Authorization": `Bearer ${token}`,
+            "Content-Type": "application/json"
+          },
+        })
+
+        if (!response.ok) {
+          throw new Error("Failed to toggle like")
+        }
+
+        const data = await response.json()
+        
+        // Update the video's like count and liked state
+        setVideos(prevVideos => 
+          prevVideos.map(video => 
+            video._id === videoId 
+              ? { 
+                  ...video, 
+                  likes: data.liked ? video.likes + 1 : video.likes - 1,
+                  isLiked: data.liked 
+                }
+              : video
+          )
+        )
+      } catch (error) {
+        console.error("Error toggling like:", error)
+      }
+    } else if (action === "comment") {
       setSelectedVideoId(videoId)
       setShowComments(true)
     } else if (action === "more") {
@@ -117,21 +230,143 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
     }
   }
 
-  const toggleFullscreen = () => {
-    if (!document.fullscreenElement) {
-      document.documentElement.requestFullscreen()
-      setIsFullscreen(true)
-    } else {
-      document.exitFullscreen()
-      setIsFullscreen(false)
+  const handleFullscreen = async () => {
+    const currentVideoEl = videoRefs.current[currentVideo]
+    if (!currentVideoEl) return
+
+    try {
+      if (!isFullscreen) {
+        // Request fullscreen on the video element
+        if (currentVideoEl.requestFullscreen) {
+          await currentVideoEl.requestFullscreen()
+        } else if ((currentVideoEl as any).webkitRequestFullscreen) {
+          await (currentVideoEl as any).webkitRequestFullscreen()
+        } else if ((currentVideoEl as any).mozRequestFullScreen) {
+          await (currentVideoEl as any).mozRequestFullScreen()
+        } else if ((currentVideoEl as any).msRequestFullscreen) {
+          await (currentVideoEl as any).msRequestFullscreen()
+        }
+        setIsFullscreen(true)
+        
+        // Lock orientation to landscape when entering fullscreen
+        if (typeof screen !== 'undefined' && screen.orientation) {
+          try {
+            await (screen.orientation as any).lock('landscape')
+          } catch (error) {
+            console.log('Orientation lock not supported')
+          }
+        }
+      } else {
+        // Exit fullscreen
+        if (document.exitFullscreen) {
+          await document.exitFullscreen()
+        } else if ((document as any).webkitExitFullscreen) {
+          await (document as any).webkitExitFullscreen()
+        } else if ((document as any).mozCancelFullScreen) {
+          await (document as any).mozCancelFullScreen()
+        } else if ((document as any).msExitFullscreen) {
+          await (document as any).msExitFullscreen()
+        }
+        setIsFullscreen(false)
+        
+        // Unlock orientation when exiting fullscreen
+        if (typeof screen !== 'undefined' && screen.orientation) {
+          try {
+            await (screen.orientation as any).unlock()
+          } catch (error) {
+            console.log('Orientation unlock not supported')
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Error toggling fullscreen:', error)
     }
   }
 
-  const handleShare = (platform: string, videoId: number) => {
+  // Add video playback state management
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        // Pause all videos when page is not visible
+        videoRefs.current.forEach((video) => {
+          if (video) {
+            video.pause()
+          }
+        })
+      }
+    }
+
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
+  // Add fullscreen change event listener
+  useEffect(() => {
+    const handleFullscreenChange = () => {
+      const isCurrentlyFullscreen = !!(
+        document.fullscreenElement ||
+        (document as any).webkitFullscreenElement ||
+        (document as any).mozFullScreenElement ||
+        (document as any).msFullscreenElement
+      )
+      setIsFullscreen(isCurrentlyFullscreen)
+    }
+
+    document.addEventListener('fullscreenchange', handleFullscreenChange)
+    document.addEventListener('webkitfullscreenchange', handleFullscreenChange)
+    document.addEventListener('mozfullscreenchange', handleFullscreenChange)
+    document.addEventListener('MSFullscreenChange', handleFullscreenChange)
+
+    return () => {
+      document.removeEventListener('fullscreenchange', handleFullscreenChange)
+      document.removeEventListener('webkitfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('mozfullscreenchange', handleFullscreenChange)
+      document.removeEventListener('MSFullscreenChange', handleFullscreenChange)
+    }
+  }, [])
+
+  // Handle video intersection
+  useEffect(() => {
+    const observer = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          const video = entry.target as HTMLVideoElement
+          if (entry.isIntersecting) {
+            video.play().catch((error) => {
+              console.log('Auto-play prevented:', error)
+            })
+          } else {
+            video.pause()
+          }
+        })
+      },
+      {
+        threshold: 0.5,
+      }
+    )
+
+    videoRefs.current.forEach((video) => {
+      if (video) {
+        observer.observe(video)
+      }
+    })
+
+    return () => {
+      videoRefs.current.forEach((video) => {
+        if (video) {
+          observer.unobserve(video)
+        }
+      })
+    }
+  }, [videos])
+
+  const handleShare = (platform: string, videoId: string) => {
     const videoUrl = `https://strmly.app/video/${videoId}`
     console.log(`Sharing to ${platform}:`, videoUrl)
 
-    //integrate with each platform's sharing API
     if (platform === "WhatsApp") {
       window.open(`https://wa.me/?text=${encodeURIComponent(videoUrl)}`)
     }
@@ -143,28 +378,70 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
     }
   }
 
-  const copyLink = (videoId: number) => {
+  const copyLink = (videoId: string) => {
     const videoUrl = `https://strmly.app/video/${videoId}`
     navigator.clipboard.writeText(videoUrl)
     console.log("Link copied to clipboard")
   }
 
+  const togglePlay = (videoId: string, index: number) => {
+    const videoEl = videoRefs.current[index]
+    if (videoEl) {
+      if (playingStates[videoId]) {
+        videoEl.pause()
+      } else {
+        videoEl.play().catch((error) => {
+          console.log('Play prevented:', error)
+        })
+      }
+    }
+  }
+
+  // Add click outside handler
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      // Close comments section
+      if (commentsRef.current && !commentsRef.current.contains(event.target as Node)) {
+        setShowComments(false)
+      }
+
+      // Close share options
+      if (shareOptionsRef.current && !shareOptionsRef.current.contains(event.target as Node)) {
+        setShowShareOptions(false)
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
+
   return (
     <>
       <div className={`h-screen overflow-y-scroll snap-y snap-mandatory ${isFullscreen ? "fullscreen-video" : ""} pt-14`}>
         {filteredVideos.map((video, index) => (
-          <div key={video.id} className="h-screen snap-start relative bg-black">
+          <div key={video._id} className="h-screen snap-start relative bg-black">
             {/* Video Background */}
             <div className="absolute inset-0">
-              <img
-                src={video.videoUrl || "/placeholder.svg"}
-                alt="Video thumbnail"
-                className="w-full h-full object-cover"
+              <video
+                ref={(el) => {
+                  videoRefs.current[index] = el
+                }}
+                src={video.videoUrl}
+                poster={video.thumbnailUrl}
+                className={`w-full h-full object-cover ${
+                  isFullscreen ? 'object-contain' : ''
+                }`}
+                loop
+                playsInline
+                onPlay={() => setPlayingStates(prev => ({ ...prev, [video._id]: true }))}
+                onPause={() => setPlayingStates(prev => ({ ...prev, [video._id]: false }))}
               />
 
               {/* Video Progress Bar */}
               <div className="video-progress">
-                <div className="video-progress-bar" style={{ width: `${video.progress}%` }}></div>
+                <div className="video-progress-bar" style={{ width: `${video.progress || 0}%` }}></div>
               </div>
 
               {/* Play/Pause overlay */}
@@ -172,10 +449,10 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <Button
                   variant="ghost"
                   size="lg"
-                  onClick={() => setIsPlaying(!isPlaying)}
+                  onClick={() => togglePlay(video._id, index)}
                   className="text-white/80 hover:text-white hover:bg-black/20"
                 >
-                  {isPlaying ? <Pause size={48} /> : <Play size={48} />}
+                  {playingStates[video._id] ? <Pause size={48} /> : <Play size={48} />}
                 </Button>
               </div>
             </div>
@@ -186,10 +463,12 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <Button
                   variant="ghost"
                   size="lg"
-                  onClick={() => handleVideoAction("like", video.id)}
-                  className="text-white hover:text-red-500 hover:bg-black/20 rounded-full p-3"
+                  onClick={() => handleVideoAction("like", video._id)}
+                  className={`text-white hover:bg-black/20 rounded-full p-3 ${
+                    video.isLiked ? 'text-red-500' : 'hover:text-red-500'
+                  }`}
                 >
-                  <Heart size={28} />
+                  <Heart size={28} className={video.isLiked ? 'fill-current' : ''} />
                 </Button>
                 <span className="text-white text-sm font-medium mt-1">
                   {video.likes > 1000 ? `${(video.likes / 1000).toFixed(0)}K` : video.likes}
@@ -200,7 +479,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <Button
                   variant="ghost"
                   size="lg"
-                  onClick={() => handleVideoAction("comment", video.id)}
+                  onClick={() => handleVideoAction("comment", video._id)}
                   className="text-white hover:text-primary hover:bg-black/20 rounded-full p-3"
                 >
                   <MessageCircle size={28} />
@@ -215,40 +494,13 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                   variant="ghost"
                   size="lg"
                   onClick={() => {
-                    setSelectedVideoId(video.id)
+                    setSelectedVideoId(video._id)
                     setShowShareOptions(!showShareOptions)
                   }}
                   className="text-white hover:text-primary hover:bg-black/20 rounded-full p-3"
                 >
                   <Share size={28} />
                 </Button>
-                {showShareOptions && selectedVideoId === video.id && (
-                  <div className="absolute right-16 top-0 bg-background rounded-lg shadow-lg p-4 space-y-4 min-w-[280px]">
-                    <Button variant="ghost" className="w-full justify-start" onClick={() => copyLink(video.id)}>
-                      <LinkIcon size={16} className="mr-2" />
-                      Copy Link
-                    </Button>
-
-                    <div className="grid grid-cols-3 gap-4">
-                      {socialPlatforms.map((platform) => (
-                        <Button
-                          key={platform.name}
-                          variant="outline"
-                          size="sm"
-                          className="flex flex-col items-center p-4 h-auto hover:bg-accent"
-                          onClick={() => handleShare(platform.name, video.id)}
-                        >
-                          <div
-                            className={`w-10 h-10 rounded-full ${platform.color} flex items-center justify-center text-white mb-2`}
-                          >
-                            <span className="text-base">{platform.icon}</span>
-                          </div>
-                          <span className="text-xs font-medium">{platform.name}</span>
-                        </Button>
-                      ))}
-                    </div>
-                  </div>
-                )}
                 <span className="text-white text-sm font-medium mt-1">{video.shares}</span>
               </div>
 
@@ -256,7 +508,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <Button
                   variant="ghost"
                   size="lg"
-                  onClick={() => handleVideoAction("save", video.id)}
+                  onClick={() => handleVideoAction("save", video._id)}
                   className="text-white hover:text-primary hover:bg-black/20 rounded-full p-3"
                 >
                   <Bookmark size={28} />
@@ -271,7 +523,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <Button
                   variant="ghost"
                   size="lg"
-                  onClick={() => handleVideoAction("more", video.id)}
+                  onClick={() => handleVideoAction("more", video._id)}
                   className="text-white hover:text-primary hover:bg-black/20 rounded-full p-3"
                 >
                   <MoreVertical size={28} />
@@ -279,12 +531,12 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               </div>
 
               {/* Fullscreen button for long videos */}
-              {video.type === "long" && (
+              {video.type === "LONG" && (
                 <div className="flex flex-col items-center">
                   <Button
                     variant="ghost"
                     size="lg"
-                    onClick={toggleFullscreen}
+                    onClick={handleFullscreen}
                     className="text-white hover:text-primary hover:bg-black/20 rounded-full p-3"
                   >
                     <Maximize size={28} />
@@ -295,8 +547,8 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               {/* Profile Avatar */}
               <div className="relative">
                 <Avatar className="w-12 h-12 border-2 border-white">
-                  <AvatarImage src={video.user.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{video.user.name[0]}</AvatarFallback>
+                  <AvatarImage src={video.user?.avatar || "/placeholder.svg"} />
+                  <AvatarFallback>{video.user?.name[0]}</AvatarFallback>
                 </Avatar>
                 <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
                   <span className="text-black text-xs font-bold">+</span>
@@ -310,48 +562,52 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               <div className="mb-4">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center space-x-2">
-                    <Badge variant="secondary" className="bg-primary/20 text-primary border-primary">
-                      <Users size={12} className="mr-1" />
-                      {video.community}
-                    </Badge>
+                    {video.community && (
+                      <Badge variant="secondary" className="bg-primary/20 text-primary border-primary">
+                        <Users size={12} className="mr-1" />
+                        {video.community}
+                      </Badge>
+                    )}
 
                     {/* Paid Dropdown */}
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                      <Button variant="secondary" size="sm" className="bg-green-500/20 text-green-400 border-green-500">
-                        Paid
-                        <ChevronDown size={12} className="ml-1" />
-                      </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent side="top" align="end" className="w-56">
-                      <DropdownMenuItem>
-                        <div className="flex flex-col">
-                          <span className="font-medium">Full Series</span>
-                          <span className="text-sm text-muted-foreground">Rs 29</span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <div className="flex flex-col">
-                          <span className="font-medium">Creator Access</span>
-                          <span className="text-sm text-muted-foreground">Rs 99/month</span>
-                        </div>
-                      </DropdownMenuItem>
-                      <DropdownMenuItem>
-                        <div className="flex flex-col">
-                          <span className="font-medium">STRMLY Pass</span>
-                          <span className="text-sm text-muted-foreground">Rs 199/month</span>
-                        </div>
-                      </DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                    {/* <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="secondary" size="sm" className="bg-green-500/20 text-green-400 border-green-500">
+                          Paid
+                          <ChevronDown size={12} className="ml-1" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent side="top" align="end" className="w-56">
+                        <DropdownMenuItem>
+                          <div className="flex flex-col">
+                            <span className="font-medium">Full Series</span>
+                            <span className="text-sm text-muted-foreground">Rs 29</span>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <div className="flex flex-col">
+                            <span className="font-medium">Creator Access</span>
+                            <span className="text-sm text-muted-foreground">Rs 99/month</span>
+                          </div>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem>
+                          <div className="flex flex-col">
+                            <span className="font-medium">STRMLY Pass</span>
+                            <span className="text-sm text-muted-foreground">Rs 199/month</span>
+                          </div>
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu> */}
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2 mb-2">
-                  <Badge variant="secondary" className="bg-white/20 text-white border-white">
+                  {video.series && (
+                    <Badge variant="secondary" className="bg-white/20 text-white border-white">
                       <Users size={12} className="mr-1" />
                       {video.series}
                     </Badge>
+                  )}
                   {/* Episode Dropdown */}
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
@@ -361,7 +617,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent side="top" className="w-64">
-                      {video.episodes.map((episode) => (
+                      {video.episodes?.map((episode) => (
                         <DropdownMenuItem key={episode.id} className="flex justify-between">
                           <span>{episode.title}</span>
                           <span className="text-muted-foreground">{episode.duration}</span>
@@ -372,10 +628,9 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 </div>
               </div>
 
-              <h3 className="text-lg font-bold mb-2">{video.title}</h3>
-
+              {/* User Info */}
               <div className="flex items-center space-x-2 mb-2">
-                <span className="font-semibold">{video.user.name}</span>
+                <span className="font-semibold">{video.user?.name}</span>
                 <Button
                   size="sm"
                   className="bg-transparent border border-white text-white hover:bg-white hover:text-black"
@@ -384,14 +639,73 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 </Button>
               </div>
 
-              <p className="mb-2">{video.description}</p>
+              {/* Title and Description */}
+              <h3 className="text-lg font-bold mb-2">{video.title}</h3>
+              <div className="mb-2">
+                <p className={`${!showFullDescription && 'line-clamp-2'}`}>
+                  {video.description}
+                </p>
+                {video.description && video.description.length > 100 && (
+                  <button
+                    onClick={() => setShowFullDescription(!showFullDescription)}
+                    className="text-sm text-white/80 hover:text-white mt-1"
+                  >
+                    {showFullDescription ? 'Show less' : 'more'}
+                  </button>
+                )}
+              </div>
+
+              {/* Tags */}
+              {video.tags && video.tags.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {video.tags.map((tag, index) => (
+                    <span 
+                      key={index}
+                      className="text-sm text-white/80"
+                    >
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         ))}
       </div>
 
       {/* Comments Section */}
-      <CommentsSection isOpen={showComments} onClose={() => setShowComments(false)} videoId={selectedVideoId} />
+      <div ref={commentsRef}>
+        <CommentsSection isOpen={showComments} onClose={() => setShowComments(false)} videoId={selectedVideoId} />
+      </div>
+
+      {/* Share Options */}
+      {showShareOptions && selectedVideoId && (
+        <div ref={shareOptionsRef} className="fixed right-16 top-1/2 transform -translate-y-1/2 bg-background rounded-lg shadow-lg p-4 space-y-4 min-w-[280px] z-50">
+          <Button variant="ghost" className="w-full justify-start" onClick={() => copyLink(selectedVideoId)}>
+            <LinkIcon size={16} className="mr-2" />
+            Copy Link
+          </Button>
+
+          <div className="grid grid-cols-3 gap-4">
+            {socialPlatforms.map((platform) => (
+              <Button
+                key={platform.name}
+                variant="outline"
+                size="sm"
+                className="flex flex-col items-center p-4 h-auto hover:bg-accent"
+                onClick={() => handleShare(platform.name, selectedVideoId)}
+              >
+                <div
+                  className={`w-10 h-10 rounded-full ${platform.color} flex items-center justify-center text-white mb-2`}
+                >
+                  <span className="text-base">{platform.icon}</span>
+                </div>
+                <span className="text-xs font-medium">{platform.name}</span>
+              </Button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Video More Menu */}
       <VideoMoreMenu isOpen={showMoreMenu} onClose={() => setShowMoreMenu(false)} videoId={selectedVideoId} />

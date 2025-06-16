@@ -5,6 +5,8 @@ import * as ffmpeg from "fluent-ffmpeg"
 import * as path from "path"
 import * as fs from "fs"
 import { UploadService } from "../upload/upload.service"
+import { Readable } from "stream"
+import type { Express } from "express"
 
 export interface VideoProcessingJob {
   videoId: string
@@ -37,13 +39,22 @@ export class VideoProcessingService {
   ) {}
 
   async addVideoToProcessingQueue(jobData: VideoProcessingJob): Promise<void> {
-    await this.videoQueue.add("process-video", jobData, {
-      attempts: 3,
-      backoff: {
-        type: "exponential",
-        delay: 2000,
-      },
-    })
+    try {
+      await this.videoQueue.add("process-video", jobData, {
+        attempts: 3,
+        backoff: {
+          type: "exponential",
+          delay: 2000,
+        },
+        removeOnComplete: true,
+        removeOnFail: false,
+        timeout: 30000 // 30 seconds timeout
+      });
+      this.logger.log(`Added video ${jobData.videoId} to processing queue`);
+    } catch (error) {
+      this.logger.error(`Failed to add video ${jobData.videoId} to processing queue:`, error);
+      throw new Error(`Failed to add video to processing queue: ${error.message}`);
+    }
   }
 
   async processVideo(jobData: VideoProcessingJob): Promise<any> {
@@ -63,32 +74,31 @@ export class VideoProcessingService {
 
       // Get video metadata
       const metadata = await this.getVideoMetadata(inputPath)
+      this.logger.log(`Video metadata: ${JSON.stringify(metadata)}`)
 
       // Generate thumbnail
+      this.logger.log(`Generating thumbnail for video ${videoId}`)
       const thumbnailPath = await this.generateThumbnail(inputPath, videoId)
-      const thumbnailUrl = await this.uploadService.uploadFile(
-        fs.createReadStream(thumbnailPath),
-        "thumbnails",
-        "image/jpeg"
-      )
+      const thumbnailUrl = await this.uploadThumbnail(thumbnailPath)
+      this.logger.log(`Thumbnail uploaded: ${thumbnailUrl}`)
 
       // Process video in multiple qualities
+      this.logger.log(`Processing video ${videoId} in multiple qualities`)
       const processedVideos = await this.processMultipleQualities(inputPath, videoId)
 
       // Upload processed videos to S3
+      this.logger.log(`Uploading processed videos for ${videoId}`)
       const videoUrls = {}
       for (const [quality, filePath] of Object.entries(processedVideos)) {
-        const videoUrl = await this.uploadService.uploadFile(
-          fs.createReadStream(filePath),
-          "videos",
-          "video/mp4"
-        )
+        const videoUrl = await this.uploadProcessedVideo(filePath)
         videoUrls[quality] = videoUrl
+        this.logger.log(`Uploaded ${quality} quality: ${videoUrl}`)
       }
 
       // Clean up temporary files
       this.cleanupTempFiles([inputPath, thumbnailPath, ...Object.values(processedVideos)])
 
+      this.logger.log(`Video processing completed for ${videoId}`)
       return {
         videoId,
         metadata,
@@ -98,6 +108,16 @@ export class VideoProcessingService {
       }
     } catch (error) {
       this.logger.error(`Video processing failed for video ${videoId}:`, error)
+      // Clean up any temporary files that might have been created
+      const tempDir = path.join(process.cwd(), "temp")
+      if (fs.existsSync(tempDir)) {
+        const files = fs.readdirSync(tempDir)
+        files.forEach(file => {
+          if (file.includes(videoId)) {
+            fs.unlinkSync(path.join(tempDir, file))
+          }
+        })
+      }
       throw error
     }
   }
@@ -204,6 +224,65 @@ export class VideoProcessingService {
       progress: job.progress(),
       data: job.data,
       result: job.returnvalue,
+    }
+  }
+
+  async uploadThumbnail(thumbnailPath: string): Promise<string> {
+    try {
+      const fileStream = fs.createReadStream(thumbnailPath);
+      const fileBuffer = await this.streamToBuffer(fileStream);
+      
+      const file: Express.Multer.File = {
+        fieldname: 'thumbnail',
+        originalname: 'thumbnail.jpg',
+        encoding: '7bit',
+        mimetype: 'image/jpeg',
+        buffer: fileBuffer,
+        size: fileBuffer.length,
+        destination: '',
+        filename: '',
+        path: '',
+        stream: Readable.from(fileBuffer)
+      };
+
+      return await this.uploadService.uploadFile(file, "thumbnails", "image/jpeg");
+    } catch (error) {
+      this.logger.error(`Failed to upload thumbnail: ${error.message}`);
+      throw error;
+    }
+  }
+
+  private async streamToBuffer(stream: NodeJS.ReadableStream): Promise<Buffer> {
+    const chunks: Buffer[] = [];
+    return new Promise((resolve, reject) => {
+      stream.on('data', (chunk) => chunks.push(Buffer.from(chunk)));
+      stream.on('error', (err) => reject(err));
+      stream.on('end', () => resolve(Buffer.concat(chunks)));
+    });
+  }
+
+  async uploadProcessedVideo(filePath: string): Promise<string> {
+    try {
+      const fileStream = fs.createReadStream(filePath);
+      const fileBuffer = await this.streamToBuffer(fileStream);
+      
+      const file: Express.Multer.File = {
+        fieldname: 'video',
+        originalname: path.basename(filePath),
+        encoding: '7bit',
+        mimetype: 'video/mp4',
+        buffer: fileBuffer,
+        size: fileBuffer.length,
+        destination: '',
+        filename: '',
+        path: '',
+        stream: Readable.from(fileBuffer)
+      };
+
+      return await this.uploadService.uploadFile(file, "processed-videos", "video/mp4");
+    } catch (error) {
+      this.logger.error(`Failed to upload processed video: ${error.message}`);
+      throw error;
     }
   }
 }
