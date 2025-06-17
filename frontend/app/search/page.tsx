@@ -242,7 +242,7 @@ export default function SearchPage() {
               {/* Top Results */}
               <div>
                 <h3 className="font-semibold mb-3">Top Results</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {searchResults.videos.slice(0, 2).map((video) => (
                     <Card key={video.id} className="cursor-pointer hover:bg-accent">
                       <CardContent className="p-3">
@@ -276,7 +276,7 @@ export default function SearchPage() {
                       </CardContent>
                     </Card>
                   ))}
-                </div>
+                </div> */}
               </div>
 
               {/* Users */}
@@ -415,7 +415,7 @@ export default function SearchPage() {
                 <TrendingUp className="mr-2" size={24} />
                 Trending Hashtags
               </h2>
-              <div className="space-y-3">
+              {/* <div className="space-y-3">
                 {trendingHashtags.map((item, index) => (
                   <div
                     key={item.tag}
@@ -433,7 +433,7 @@ export default function SearchPage() {
                     <span className="text-sm text-muted-foreground">#{index + 1}</span>
                   </div>
                 ))}
-              </div>
+              </div> */}
             </div>
           </TabsContent>
 
@@ -443,7 +443,7 @@ export default function SearchPage() {
                 <Users className="mr-2" size={24} />
                 Suggested for You
               </h2>
-              <div className="space-y-4">
+              {/* <div className="space-y-4">
                 {suggestedUsers.map((user) => (
                   <div
                     key={user.username}
@@ -471,7 +471,7 @@ export default function SearchPage() {
                     <Button size="sm">Follow</Button>
                   </div>
                 ))}
-              </div>
+              </div> */}
             </div>
           </TabsContent>
         </Tabs>

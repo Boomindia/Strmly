@@ -276,7 +276,7 @@ export default function UploadPage() {
                     <div>
                       <p className="text-xl font-medium">Upload your {uploadType} video</p>
                       <p className="text-muted-foreground">Drag and drop or click to browse</p>
-                      <p className="text-sm text-muted-foreground mt-2">
+                      <p className="text-sm text-muted-foreground mt-2 mb-4">
                         {uploadType === "short" ? "Max duration: 60 seconds" : "Supports MP4, MOV, AVI up to 2GB"}
                       </p>
                     </div>
