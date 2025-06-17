@@ -12,7 +12,11 @@ export class VideosController {
   @UseGuards(JwtAuthGuard)
   @Post()
   @UseInterceptors(FileInterceptor("file"))
-  createVideo(@Request() req: RequestWithUser, @UploadedFile() file: Express.Multer.File) {
+  createVideo(
+    @Request() req: RequestWithUser,
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: any
+  ) {
     console.log('Received file:', file);
     console.log('File details:', {
       originalname: file?.originalname,
@@ -20,7 +24,37 @@ export class VideosController {
       size: file?.size,
       buffer: file?.buffer ? 'Buffer present' : 'No buffer'
     });
-    return this.videosService.createVideo(req.user.id, file)
+    console.log('Received body:', body);
+
+    // Parse tags if they exist
+    let tags = [];
+    if (body.tags) {
+      try {
+        tags = JSON.parse(body.tags);
+      } catch (e) {
+        console.error('Error parsing tags:', e);
+      }
+    }
+
+    const createVideoDto: CreateVideoDto = {
+      title: body.title,
+      description: body.description,
+      type: body.type || 'LONG',
+      visibility: body.visibility || 'PUBLIC',
+      tags: tags,
+      genre: body.genre,
+      ageRestriction: body.ageRestriction,
+      orientation: body.orientation,
+      videoType: body.videoType || 'single',
+      communityId: body.communityId,
+      seriesId: body.seriesId,
+      episodeNumber: body.episodeNumber ? parseInt(body.episodeNumber) : undefined,
+      newSeriesName: body.newSeriesName,
+      newSeriesDescription: body.newSeriesDescription,
+      totalEpisodes: body.totalEpisodes ? parseInt(body.totalEpisodes) : undefined
+    };
+
+    return this.videosService.createVideo(req.user.id, file, createVideoDto)
   }
 
   @Get(":id")

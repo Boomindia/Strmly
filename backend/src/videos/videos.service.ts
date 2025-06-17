@@ -21,7 +21,7 @@ export class VideosService {
     private cacheService: CacheService,
   ) {}
 
-  async createVideo(userId: string, file: Express.Multer.File): Promise<Video> {
+  async createVideo(userId: string, file: Express.Multer.File, createVideoDto: CreateVideoDto): Promise<Video> {
     let videoUrl: string | undefined;
     try {
       // Upload to S3
@@ -29,22 +29,30 @@ export class VideosService {
       
       // Create video document with PUBLISHED status
       const video = await this.videoModel.create({
-        title: file.originalname.replace(/\.[^/.]+$/, ""), // Remove file extension
-        description: "",
-        type: "LONG",
+        title: createVideoDto.title,
+        description: createVideoDto.description,
+        type: createVideoDto.type || "LONG",
         status: "PUBLISHED",
         videoUrl: videoUrl,
         userId: userId,
-        visibility: "PUBLIC",
+        visibility: createVideoDto.visibility || "PUBLIC",
         duration: 0, // We'll update this later if needed
         thumbnailUrl: "", // We'll update this later if needed
-        tags: [],
-        category: "OTHER",
+        tags: createVideoDto.tags || [],
+        category: createVideoDto.genre || "OTHER",
         language: "en",
         monetization: {
           isMonetized: false,
           type: "NONE"
-        }
+        },
+        ageRestriction: createVideoDto.ageRestriction || "all",
+        orientation: createVideoDto.orientation || "landscape",
+        communityId: createVideoDto.communityId,
+        seriesId: createVideoDto.seriesId,
+        episodeNumber: createVideoDto.episodeNumber,
+        newSeriesName: createVideoDto.newSeriesName,
+        newSeriesDescription: createVideoDto.newSeriesDescription,
+        totalEpisodes: createVideoDto.totalEpisodes
       });
 
       return video;
