@@ -617,16 +617,16 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               )}
             </div>
 
-            {/* Right Side Actions - Reverted icon/button sizes and reduced space-y */}
+            {/* Right Side Actions - YouTube Shorts style */}
             <div className="video-actions flex flex-col items-center justify-end h-full py-4 space-y-1">
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("like", video._id)}
-                  className={`bg-transparent text-white rounded-full hover:bg-transparent ${video.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+                  className={`bg-transparent text-white rounded-full hover:bg-transparent p-2 ${video.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
                 >
-                  <Heart size={28} className={video.isLiked ? 'fill-current' : ''} />
+                  <Heart size={32} className={video.isLiked ? 'fill-current' : ''} />
                 </Button>
-                <span className="text-white text-sm font-medium mt-1">
+                <span className="text-white text-xs font-medium mt-1">
                   {video.likes > 1000 ? `${(video.likes / 1000).toFixed(0)}K` : video.likes}
                 </span>
               </div>
@@ -634,11 +634,11 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("comment", video._id)}
-                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent"
+                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-2"
                 >
-                  <MessageCircle size={28} />
+                  <MessageCircle size={32} />
                 </Button>
-                <span className="text-white text-sm font-medium mt-1">
+                <span className="text-white text-xs font-medium mt-1">
                   {video.comments > 1000 ? `${(video.comments / 1000).toFixed(1)}K` : video.comments}
                 </span>
               </div>
@@ -649,21 +649,21 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                     setSelectedVideoId(video._id)
                     setShowShareOptions(!showShareOptions)
                   }}
-                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent"
+                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-2"
                 >
-                  <Share size={28} />
+                  <Share size={32} />
                 </Button>
-                <span className="text-white text-sm font-medium mt-1">{video.shares}</span>
+                <span className="text-white text-xs font-medium mt-1">{video.shares}</span>
               </div>
 
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("save", video._id)}
-                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent"
+                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-2"
                 >
-                  <Bookmark size={28} />
+                  <Bookmark size={32} />
                 </Button>
-                <span className="text-white text-sm font-medium mt-1">
+                <span className="text-white text-xs font-medium mt-1">
                   {video.saves > 1000 ? `${(video.saves / 1000).toFixed(1)}K` : video.saves}
                 </span>
               </div>
@@ -672,9 +672,9 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("more", video._id)}
-                  className="bg-transparent text-white hover:text-primary hover:bg-transparent"
+                  className="bg-transparent text-white hover:text-primary hover:bg-transparent p-2"
                 >
-                  <MoreVertical size={28} />
+                  <MoreVertical size={32} />
                 </Button>
               </div>
 
@@ -683,27 +683,27 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <div className="flex flex-col items-center">
                   <Button
                     onClick={handleFullscreen}
-                    className="bg-transparent text-white hover:text-primary rounded-full"
+                    className="bg-transparent text-white hover:text-primary rounded-full p-2"
                   >
-                    <Maximize size={28} />
+                    <Maximize size={32} />
                   </Button>
                 </div>
               )}
 
-              {/* Profile Avatar - Remains with mt-4 */}
+              {/* Profile Avatar */}
               <div className="relative mt-4">
-                <Avatar className="w-12 h-12 border-2 border-white">
+                <Avatar className="w-10 h-10 border-2 border-white">
                   <AvatarImage src={video.user?.avatar || "/placeholder.svg"} />
-                  <AvatarFallback>{video.user?.name[0]}</AvatarFallback>
+                  <AvatarFallback className="text-xs">{video.user?.name[0]}</AvatarFallback>
                 </Avatar>
-                <div className="absolute -bottom-2 left-1/2 transform -translate-x-1/2 w-6 h-6 bg-primary rounded-full flex items-center justify-center">
+                <div className="absolute -bottom-1 left-1/2 transform -translate-x-1/2 w-5 h-5 bg-primary rounded-full flex items-center justify-center">
                   <span className="text-black text-xs font-bold">+</span>
                 </div>
               </div>
             </div>
 
             {/* Bottom Info */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 pb-24 sm:pb-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent max-h-[50vh] overflow-y-auto">
+            <div className="absolute bottom-0 left-0 right-0 p-4 pb-28 sm:pb-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent max-h-[50vh] overflow-y-auto">
               {/* Community and Series Info */}
               <div className="mb-2">
                 <div className="flex items-center justify-between">
