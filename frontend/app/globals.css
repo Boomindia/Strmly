@@ -61,13 +61,11 @@
     text-rendering: optimizeLegibility;
   }
   
-  /* Improve touch targets on mobile */
   button, a, [role="button"] {
     min-height: 44px;
     min-width: 44px;
   }
   
-  /* Prevent text selection on interactive elements */
   button, a, [role="button"] {
     -webkit-touch-callout: none;
     -webkit-user-select: none;
@@ -77,19 +75,16 @@
     user-select: none;
   }
   
-  /* Smooth scrolling */
   html {
     scroll-behavior: smooth;
   }
   
-  /* Better focus indicators */
   *:focus-visible {
     outline: 2px solid hsl(var(--ring));
     outline-offset: 2px;
   }
 }
 
-/* Custom scrollbar */
 ::-webkit-scrollbar {
   width: 6px;
 }
@@ -102,7 +97,6 @@
   @apply bg-primary rounded-full;
 }
 
-/* Video player styles */
 .video-container {
   position: relative;
   width: 100%;
@@ -140,7 +134,6 @@
   color: white;
 }
 
-/* Progress bar */
 .video-progress {
   position: absolute;
   bottom: 0;
@@ -156,7 +149,6 @@
   transition: width 0.1s ease;
 }
 
-/* Full screen video styles */
 .fullscreen-video {
   position: fixed;
   top: 0;
@@ -167,7 +159,6 @@
   background: black;
 }
 
-/* Comments section */
 .comments-section {
   position: fixed;
   bottom: 0;
@@ -190,7 +181,6 @@
   color: hsl(var(--card-foreground));
 }
 
-/* Emoji picker */
 .emoji-picker {
   position: absolute;
   bottom: 100%;
@@ -210,7 +200,7 @@
   border-color: hsl(var(--border));
 }
 
-/* Responsive breakpoints */
+/*Responsive breakpoint*/
 @media (max-width: 640px) {
   .mobile-layout {
     margin-left: 0 !important;
@@ -292,7 +282,6 @@
   }
 }
 
-/* Safe area support for notched devices */
 @supports (padding: max(0px)) {
   .mobile-bottom-nav {
     padding-bottom: max(1rem, env(safe-area-inset-bottom));
