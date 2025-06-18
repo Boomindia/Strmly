@@ -703,7 +703,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
             </div>
 
             {/* Bottom Info */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 pb-20 sm:pb-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent max-h-[50vh] overflow-y-auto">
+            <div className="absolute bottom-0 left-0 right-0 p-4 pb-24 sm:pb-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent max-h-[50vh] overflow-y-auto">
               {/* Community and Series Info */}
               <div className="mb-2">
                 <div className="flex items-center justify-between">

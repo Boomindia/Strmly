@@ -56,6 +56,36 @@
   body {
     @apply bg-background text-foreground;
     font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+  }
+  
+  /* Improve touch targets on mobile */
+  button, a, [role="button"] {
+    min-height: 44px;
+    min-width: 44px;
+  }
+  
+  /* Prevent text selection on interactive elements */
+  button, a, [role="button"] {
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -khtml-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+  }
+  
+  /* Smooth scrolling */
+  html {
+    scroll-behavior: smooth;
+  }
+  
+  /* Better focus indicators */
+  *:focus-visible {
+    outline: 2px solid hsl(var(--ring));
+    outline-offset: 2px;
   }
 }
 
@@ -180,7 +210,55 @@
   border-color: hsl(var(--border));
 }
 
-@media (max-width: 768px) {
+/* Responsive breakpoints */
+@media (max-width: 640px) {
+  .mobile-layout {
+    margin-left: 0 !important;
+  }
+
+  .desktop-sidebar {
+    display: none;
+  }
+
+  .mobile-bottom-nav {
+    display: flex;
+  }
+
+  .video-actions {
+    bottom: 8rem;
+    right: 0.75rem;
+  }
+  
+  .video-overlay {
+    padding: 1.5rem 0.75rem 0.75rem;
+  }
+  
+  .long-video-overlay {
+    padding: 2rem 0.75rem 0.75rem;
+  }
+  
+  .comments-section {
+    height: 80vh;
+  }
+}
+
+@media (max-width: 475px) {
+  .video-actions {
+    bottom: 7rem;
+    right: 0.5rem;
+    gap: 1rem;
+  }
+  
+  .video-overlay {
+    padding: 1rem 0.5rem 0.5rem;
+  }
+  
+  .long-video-overlay {
+    padding: 1.5rem 0.5rem 0.5rem;
+  }
+}
+
+@media (min-width: 641px) and (max-width: 768px) {
   .mobile-layout {
     margin-left: 0 !important;
   }
@@ -201,6 +279,54 @@
 @media (min-width: 769px) {
   .mobile-bottom-nav {
     display: none;
-    
+  }
+  
+  .desktop-sidebar {
+    display: block;
+  }
+
+  .video-actions {
+    bottom: 8rem;
+    right: 1.5rem;
+    gap: 2rem;
+  }
+}
+
+/* Safe area support for notched devices */
+@supports (padding: max(0px)) {
+  .mobile-bottom-nav {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  .video-actions {
+    bottom: max(12rem, calc(12rem + env(safe-area-inset-bottom)));
+  }
+  
+  .video-overlay {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+  
+  .long-video-overlay {
+    padding-bottom: max(1rem, env(safe-area-inset-bottom));
+  }
+}
+
+/* Landscape orientation adjustments */
+@media (orientation: landscape) and (max-height: 500px) {
+  .video-actions {
+    bottom: 6rem;
+    gap: 1rem;
+  }
+  
+  .video-overlay {
+    padding: 1rem 1rem 0.5rem;
+  }
+  
+  .long-video-overlay {
+    padding: 1.5rem 1rem 0.5rem;
+  }
+  
+  .comments-section {
+    height: 90vh;
   }
 }
