@@ -512,13 +512,13 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
         setShowShareOptions(false)
       }
 
-      // Collapse description if click outside a *currently expanded* description
+      // Collapse description if clicked outstide
       if (descriptionRef.current) {
         // Check if any description is currently expanded
         const isAnyDescriptionExpanded = Object.values(showFullDescriptionMap).some(Boolean);
         // If a description is expanded AND the click is outside the descriptionRef
         if (isAnyDescriptionExpanded && !descriptionRef.current.contains(event.target as Node)) {
-          setShowFullDescriptionMap({}); // Reset all to false
+          setShowFullDescriptionMap({});
         }
       }
     }
@@ -542,7 +542,6 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
     }
   }
 
-  // Function to toggle full description for a specific video
   const toggleFullDescription = (videoId: string) => {
     setShowFullDescriptionMap(prev => ({
       ...prev,
@@ -550,7 +549,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
     }));
   };
 
-  const DEFAULT_WORD_LIMIT = 7; // Number of words to show initially
+  const DEFAULT_WORD_LIMIT = 7;
 
   return (
     <>
@@ -637,6 +636,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                   className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-1"
                 >
                   <MessageCircle size={36} />
+
                 </Button>
                 <span className="text-white text-xs font-medium mt-1">
                   {video.comments > 1000 ? `${(video.comments / 1000).toFixed(1)}K` : video.comments}
@@ -771,7 +771,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <p className="text-white/90 text-xs">
                   {showFullDescriptionMap[video._id] ? video.description : truncateWords(video.description, DEFAULT_WORD_LIMIT)}
                 </p>
-                {/* Only show "more" button if there's actually more text than the limit */}
+                {/* Show more button if the number of words exceeds the actual limit*/}
                 {video.description && video.description.split(/\s+/).length > DEFAULT_WORD_LIMIT && (
                   <button
                     onClick={() => toggleFullDescription(video._id)}
@@ -837,3 +837,4 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
     </>
   )
 }
+
