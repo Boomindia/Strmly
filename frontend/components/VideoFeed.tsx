@@ -748,12 +748,12 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
 
               {/* User Info */}
               <div className="flex items-center space-x-2 mb-1">
-                <span className="font-semibold text-white">{video.user.name}</span>
+                <span className="font-semibold text-white text-sm">{video.user.name}</span>
                 {video.user.id && video.user.id !== user?.id && (
                   <Button
                     size="sm"
                     variant={followingMap[video.user.id] ? "outline" : "default"}
-                    className={`${
+                    className={`text-xs px-2 py-1 ${
                       followingMap[video.user.id]
                         ? "bg-transparent border border-white text-white hover:bg-white hover:text-black"
                         : "bg-white text-black hover:bg-white/90"
@@ -766,16 +766,16 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               </div>
 
               {/* Title and Description */}
-              <h3 className="text-lg font-bold mb-1 text-white">{video.title}</h3>
+              <h3 className="text-sm font-bold mb-1 text-white">{video.title}</h3>
               <div className="mb-1" ref={descriptionRef}>
-                <p className="text-white/90">
+                <p className="text-white/90 text-xs">
                   {showFullDescriptionMap[video._id] ? video.description : truncateWords(video.description, DEFAULT_WORD_LIMIT)}
                 </p>
                 {/* Only show "more" button if there's actually more text than the limit */}
                 {video.description && video.description.split(/\s+/).length > DEFAULT_WORD_LIMIT && (
                   <button
                     onClick={() => toggleFullDescription(video._id)}
-                    className="text-sm text-white/80 hover:text-white mt-1"
+                    className="text-xs text-white/80 hover:text-white mt-1"
                   >
                     {showFullDescriptionMap[video._id] ? 'Show less' : 'more'}
                   </button>
@@ -788,7 +788,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                   {video.tags.map((tag, tagIndex) => ( // Changed index to tagIndex to avoid conflict
                     <span
                       key={tagIndex}
-                      className="text-sm text-white/80"
+                      className="text-xs text-white/80"
                     >
                       #{tag}
                     </span>
