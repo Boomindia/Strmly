@@ -18,23 +18,23 @@ export default function VideoMoreMenu({ isOpen, onClose, videoId }: VideoMoreMen
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-end justify-center z-50" onClick={onClose}>
-      <div className="bg-background rounded-t-2xl w-full max-w-md p-6 space-y-4" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-background rounded-t-2xl w-full max-w-md p-4 lg:p-6 space-y-3 lg:space-y-4" onClick={(e) => e.stopPropagation()}>
         {/* Header */}
         <div className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">Video Options</h3>
-          <Button variant="ghost" size="sm" onClick={onClose}>
-            <X size={20} />
+          <h3 className="text-base lg:text-lg font-semibold">Video Options</h3>
+          <Button variant="ghost" size="sm" onClick={onClose} className="p-2 lg:p-3">
+            <X size={18} className="lg:w-5 lg:h-5" />
           </Button>
         </div>
 
         {/* Quality Settings */}
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
-            <Settings size={16} />
-            <span className="font-medium">Quality</span>
+            <Settings size={14} className="lg:w-4 lg:h-4" />
+            <span className="font-medium text-sm lg:text-base">Quality</span>
           </div>
           <Select value={quality} onValueChange={setQuality}>
-            <SelectTrigger>
+            <SelectTrigger className="text-sm lg:text-base">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -49,11 +49,11 @@ export default function VideoMoreMenu({ isOpen, onClose, videoId }: VideoMoreMen
         {/* Speed Settings */}
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
-            <Gauge size={16} />
-            <span className="font-medium">Playback Speed</span>
+            <Gauge size={14} className="lg:w-4 lg:h-4" />
+            <span className="font-medium text-sm lg:text-base">Playback Speed</span>
           </div>
           <Select value={speed} onValueChange={setSpeed}>
-            <SelectTrigger>
+            <SelectTrigger className="text-sm lg:text-base">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -71,8 +71,8 @@ export default function VideoMoreMenu({ isOpen, onClose, videoId }: VideoMoreMen
         <Separator />
 
         {/* Download Option */}
-        <Button variant="outline" className="w-full justify-start">
-          <Download size={16} className="mr-2" />
+        <Button variant="outline" className="w-full justify-start text-sm lg:text-base py-2 lg:py-3">
+          <Download size={14} className="mr-2 lg:w-4 lg:h-4" />
           Download Video
         </Button>
       </div>

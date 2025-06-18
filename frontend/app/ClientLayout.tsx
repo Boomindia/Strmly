@@ -37,14 +37,16 @@ export default function ClientLayout({
   }
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background w-full overflow-x-hidden">
       {isLoggedIn && (
         <>
           <Sidebar />
           <MobileBottomNav />
         </>
       )}
-      <main className={isLoggedIn ? "md:ml-64 mobile-layout" : ""}>{children}</main>
+      <main className={isLoggedIn ? "md:ml-64 mobile-layout w-full" : "w-full"}>
+        {children}
+      </main>
     </div>
   )
 }

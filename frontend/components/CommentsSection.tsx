@@ -212,48 +212,48 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
   return (
     <div className="comments-section open">
       {/* Header */}
-      <div className="flex items-center justify-between p-4 border-b border-border">
-        <h3 className="text-lg font-semibold">Comments</h3>
-        <Button variant="ghost" size="sm" onClick={onClose}>
-          <X size={20} />
+      <div className="flex items-center justify-between p-3 lg:p-4 border-b border-border">
+        <h3 className="text-base lg:text-lg font-semibold">Comments</h3>
+        <Button variant="ghost" size="sm" onClick={onClose} className="p-2 lg:p-3">
+          <X size={18} className="lg:w-5 lg:h-5" />
         </Button>
       </div>
 
       {/* Comments List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto p-3 lg:p-4 space-y-3 lg:space-y-4">
         {comments.map((comment) => (
           <div key={comment._id} className="space-y-2">
             {/* Main Comment */}
-            <div className="flex space-x-3">
-              <Avatar className="w-8 h-8">
+            <div className="flex space-x-2 lg:space-x-3">
+              <Avatar className="w-8 h-8 lg:w-10 lg:h-10 flex-shrink-0">
                 <AvatarImage src={comment.user?.avatar || "/placeholder.svg"} />
-                <AvatarFallback>{comment.user?.name?.[0] || "U"}</AvatarFallback>
+                <AvatarFallback className="text-xs lg:text-sm">{comment.user?.name?.[0] || "U"}</AvatarFallback>
               </Avatar>
 
-              <div className="flex-1">
-                <div className="flex items-center space-x-2 mb-1">
-                  <span className="font-medium text-sm">{comment.user?.name || "Anonymous User"}</span>
-                  <span className="text-xs text-muted-foreground">
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center space-x-1 lg:space-x-2 mb-1">
+                  <span className="font-medium text-sm lg:text-base truncate">{comment.user?.name || "Anonymous User"}</span>
+                  <span className="text-xs text-muted-foreground flex-shrink-0">
                     {new Date(comment.createdAt).toLocaleDateString()}
                   </span>
                 </div>
-                <p className="text-sm">{comment.content}</p>
+                <p className="text-sm lg:text-base leading-relaxed">{comment.content}</p>
 
-                <div className="flex items-center space-x-4 mt-2">
+                <div className="flex items-center space-x-2 lg:space-x-4 mt-2">
                   <Button 
                     variant="ghost" 
                     size="sm" 
-                    className={`h-6 px-2 text-xs ${comment.isLiked ? 'text-red-500' : ''}`}
+                    className={`h-8 lg:h-6 px-2 lg:px-2 text-xs lg:text-xs ${comment.isLiked ? 'text-red-500' : ''}`}
                     onClick={() => handleLikeComment(comment._id)}
                   >
-                    <Heart size={12} className={`mr-1 ${comment.isLiked ? 'fill-current' : ''}`} />
+                    <Heart size={12} className={`mr-1 lg:w-3 lg:h-3 ${comment.isLiked ? 'fill-current' : ''}`} />
                     {comment.likesCount}
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-6 px-2 text-xs">
+                  <Button variant="ghost" size="sm" className="h-8 lg:h-6 px-2 lg:px-2 text-xs lg:text-xs">
                     Reply
                   </Button>
-                  <Button variant="ghost" size="sm" className="h-6 px-1">
-                    <MoreVertical size={12} />
+                  <Button variant="ghost" size="sm" className="h-8 lg:h-6 px-1 lg:px-1">
+                    <MoreVertical size={12} className="lg:w-3 lg:h-3" />
                   </Button>
                 </div>
               </div>
@@ -263,11 +263,11 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
       </div>
 
       {/* Comment Input */}
-      <div className="p-4 border-t border-border">
-        <div className="flex space-x-2">
-          <Avatar className="w-8 h-8">
+      <div className="p-3 lg:p-4 border-t border-border">
+        <div className="flex space-x-2 lg:space-x-3">
+          <Avatar className="w-8 h-8 lg:w-10 lg:h-10 flex-shrink-0">
             <AvatarImage src="/placeholder.svg" />
-            <AvatarFallback>U</AvatarFallback>
+            <AvatarFallback className="text-xs lg:text-sm">U</AvatarFallback>
           </Avatar>
 
           <div className="flex-1 relative">
@@ -275,7 +275,7 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
               placeholder="Add a comment..."
               value={comment}
               onChange={(e) => setComment(e.target.value)}
-              className="min-h-[40px] max-h-[120px] resize-none pr-20"
+              className="min-h-[40px] lg:min-h-[40px] max-h-[120px] resize-none pr-16 lg:pr-20 text-sm lg:text-base"
               onKeyDown={(e) => {
                 if (e.key === "Enter" && !e.shiftKey) {
                   e.preventDefault()
@@ -291,9 +291,9 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
                   variant="ghost"
                   size="sm"
                   onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-                  className="h-6 w-6 p-0"
+                  className="h-8 w-8 lg:h-6 lg:w-6 p-0"
                 >
-                  <Smile size={16} />
+                  <Smile size={16} className="lg:w-4 lg:h-4" />
                 </Button>
 
                 {showEmojiPicker && (
@@ -317,9 +317,9 @@ export default function CommentsSection({ isOpen, onClose, videoId }: CommentsSe
                 size="sm" 
                 onClick={handleSendComment} 
                 disabled={!comment.trim() || isLoading} 
-                className="h-6 w-6 p-0"
+                className="h-8 w-8 lg:h-6 lg:w-6 p-0"
               >
-                <Send size={14} />
+                <Send size={14} className="lg:w-4 lg:h-4" />
               </Button>
             </div>
           </div>

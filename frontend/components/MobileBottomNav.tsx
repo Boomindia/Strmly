@@ -17,8 +17,8 @@ export default function MobileBottomNav() {
   ]
 
   return (
-    <div className="mobile-bottom-nav items-center justify-center fixed bottom-0 left-0 right-0 bg-card border-t border-border z-50 md:hidden">
-      <div className="flex gap-6 py-2">
+    <div className="mobile-bottom-nav items-center justify-center fixed bottom-0 left-0 right-0 bg-card/95 backdrop-blur-sm border-t border-border z-50 lg:hidden">
+      <div className="flex items-center justify-around w-full px-2 py-3">
         {navItems.map((item) => {
           const Icon = item.icon
           const isActive = pathname === item.href
@@ -28,12 +28,14 @@ export default function MobileBottomNav() {
               key={item.href}
               href={item.href}
               className={cn(
-                "flex flex-col items-center p-2 rounded-lg transition-colors min-w-0",
-                isActive ? "text-primary" : "text-muted-foreground",
+                "flex flex-col items-center justify-center p-2 rounded-lg transition-all duration-200 min-w-0 flex-1 max-w-20",
+                isActive 
+                  ? "text-primary bg-primary/10" 
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50",
               )}
             >
-              <Icon size={20} />
-              <span className="text-xs mt-1 truncate">{item.label}</span>
+              <Icon size={22} className="mb-1" />
+              <span className="text-xs font-medium truncate w-full text-center">{item.label}</span>
             </Link>
           )
         })}
