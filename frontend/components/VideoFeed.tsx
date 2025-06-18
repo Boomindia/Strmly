@@ -617,13 +617,13 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
             </div>
 
             {/* Right Side Actions - YouTube Shorts style */}
-            <div className="video-actions flex flex-col items-center justify-end h-full py-4 space-y-1">
+            <div className="video-actions flex flex-col items-center justify-end h-full py-4 space-y-0">
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("like", video._id)}
-                  className={`bg-transparent text-white rounded-full hover:bg-transparent p-2 ${video.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
+                  className={`bg-transparent text-white rounded-full hover:bg-transparent p-1 ${video.isLiked ? 'text-red-500' : 'hover:text-red-500'}`}
                 >
-                  <Heart size={32} className={video.isLiked ? 'fill-current' : ''} />
+                  <Heart size={36} className={video.isLiked ? 'fill-current' : ''} />
                 </Button>
                 <span className="text-white text-xs font-medium mt-1">
                   {video.likes > 1000 ? `${(video.likes / 1000).toFixed(0)}K` : video.likes}
@@ -633,9 +633,10 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("comment", video._id)}
-                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-2"
+                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-1"
                 >
-                  <MessageCircle size={32} />
+                  <MessageCircle size={36} />
+
                 </Button>
                 <span className="text-white text-xs font-medium mt-1">
                   {video.comments > 1000 ? `${(video.comments / 1000).toFixed(1)}K` : video.comments}
@@ -648,9 +649,9 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                     setSelectedVideoId(video._id)
                     setShowShareOptions(!showShareOptions)
                   }}
-                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-2"
+                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-1"
                 >
-                  <Share size={32} />
+                  <Share size={36} />
                 </Button>
                 <span className="text-white text-xs font-medium mt-1">{video.shares}</span>
               </div>
@@ -658,9 +659,9 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("save", video._id)}
-                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-2"
+                  className="bg-transparent text-white hover:text-primary rounded-full hover:bg-transparent p-1"
                 >
-                  <Bookmark size={32} />
+                  <Bookmark size={36} />
                 </Button>
                 <span className="text-white text-xs font-medium mt-1">
                   {video.saves > 1000 ? `${(video.saves / 1000).toFixed(1)}K` : video.saves}
@@ -671,9 +672,9 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
               <div className="flex flex-col items-center">
                 <Button
                   onClick={() => handleVideoAction("more", video._id)}
-                  className="bg-transparent text-white hover:text-primary hover:bg-transparent p-2"
+                  className="bg-transparent text-white hover:text-primary hover:bg-transparent p-1"
                 >
-                  <MoreVertical size={32} />
+                  <MoreVertical size={36} />
                 </Button>
               </div>
 
@@ -682,9 +683,9 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
                 <div className="flex flex-col items-center">
                   <Button
                     onClick={handleFullscreen}
-                    className="bg-transparent text-white hover:text-primary rounded-full p-2"
+                    className="bg-transparent text-white hover:text-primary rounded-full p-1"
                   >
-                    <Maximize size={32} />
+                    <Maximize size={36} />
                   </Button>
                 </div>
               )}
@@ -702,7 +703,7 @@ export default function VideoFeed({ showMixedContent = false, longVideoOnly = fa
             </div>
 
             {/* Bottom Info */}
-            <div className="absolute bottom-0 left-0 right-0 p-4 pb-28 sm:pb-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent max-h-[50vh] overflow-y-auto">
+            <div className="absolute bottom-0 left-0 right-0 p-4 pb-32 sm:pb-4 bg-gradient-to-t from-black/80 via-black/40 to-transparent max-h-[50vh] overflow-y-auto">
               {/* Community and Series Info */}
               <div className="mb-2">
                 <div className="flex items-center justify-between">
